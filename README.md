@@ -73,7 +73,7 @@ SHAP feature Importance - what actually drives degradation at each circuit
 
 ![Compound Selection confidence](outputs/Compound_selection_stints.png)
 
-Compound Selector Confidencee, with interactive stint-number slider
+Compound Selector Confidence, with interactive stint-number slider
 
 ![Undercut Viability & DBSCAN data-quality metrics](outputs/undercut_anomaly.png)
 
