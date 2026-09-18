@@ -41,6 +41,8 @@ A full stack F1 Strategy Intelligence tool built entirely on real 2024 Formula 1
 
 ### Page 1 - Circuit Intelligence
 
+_"All the screenshots shown of analysis are for Abu Dhabi circuit"_
+
 ![Circuit Map with DRS and Braking Zones](docs/screenshots/circuit_map.png)
 
 Interactive circuit map (smoothed track outline, solid red braking zones, dashed green DRS zones offset outside the track, auto-detected numbered turns, speed trap and start/finish markers) alongside Plan A/B/C strategy cards - each showing stop count, compound sequence, predicted race time, and a color-coded risk badge (Low/Medium/High).
