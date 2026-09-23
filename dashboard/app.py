@@ -152,7 +152,8 @@ feature_store = load_feature_store()
 circuits = sorted(feature_store['CircuitName'].unique())
 
 with st.sidebar:
-    st.markdown("## 🏎️ BOXBOX")
+    st.image(os.path.join(BASE, "assets", "logo.png"), width=70)
+    st.markdown("## BOXBOX")
     st.caption("F1 Strategy Itelligence - 2024 season")
     st.divider()
 
@@ -160,15 +161,37 @@ with st.sidebar:
 
     st.divider()
     st.markdown("**Tire Compound Legend**")
-    st.markdown('<span class="compound-soft">■</span> Soft', unsafe_allow_html=True)
-    st.markdown('<span class="compound-medium">■</span> Medium', unsafe_allow_html=True)
-    st.markdown('<span class="compound-hard">■</span> Hard', unsafe_allow_html=True)
+    #Soft tyre image
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image(os.path.join(BASE, "assets", "compound_icons", "soft.png"), width=28)
+    with col2:
+        st.markdown("Soft")
+    #Medium tyre image
+    col1, col2 = st.columns([1, 4])
+    with col2:
+        st.image(os.path.join(BASE, "assets", "compound_icons", "medium.png"), width=28)
+    with col2:
+        st.markdown("Medium")
+    #Hard tyre image
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image(os.path.join(BASE, "assets", "compound_icons", "hard.png"), width=28)
+    with col2:
+        st.markdown("Hard")
 
 st.session_state['circuit'] = selected_circuit
 
 st.write("Circuit found:", circuits)
 
-st.title(f'🏁 {selected_circuit} - Strategy Intelligence')
+col_logo, col_title = st.columns([1,8])
+with col_logo:
+    st.image(os.path.join(BASE, "assets", "logo.png"), width=90)
+with col_title:
+    st.markdown("# BOXBOX - F1 Strategy Intelligence")
+    st.caption("Because some pit walls need help")
+
+st.markdown(f"### {selected_circuit} - Strategy Intelligence")
 
 #Circuit Map
 st.subheader("Circuit Map")
