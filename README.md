@@ -2,22 +2,29 @@
 
 _"Because some pit walls need help"_
 
-**BoxBox** is what your pit wall radios say when it's time to pit - the term became something of a meme thanks to Ferrari's chaotic strategy calls over the years. This project is a data-driven attempt to make that call the right one, every time.
+**BoxBox** is what your pit wall radios say when it's time to pit. The term became something of a meme thanks to Ferrari's chaotic strategy calls over the years. This project is a data-driven attempt to make that call the right one, every time.
 
-![BoxBox Dashboard - Circuit Intelligence](docs/screenshots/dashboard_page1.jpg)
+![BoxBox Dashboard - Strategy](docs/dash_app/strategy.png)
+
+_BoxBox is an unofficial fan and educational project. It is not affiliated with, endorsed by, or connected to Formula 1, the FIA, or any team._
 
 ---
 
 ## What It Is
 
-A full stack F1 Strategy Intelligence tool built entirely on real 2024 Formula 1 season data. It combines tire degradation modeling, survival analysis, machine learning, and an interactive Streamlit dashboard to answer the questions a real race strategist asks: Which tires, in what order, when to pit, and how risky is the plan.
+A full-stack F1 Strategy Intelligence tool built entirely on real 2024 Formula 1 season data. It combines tyre degradation modelling, survival analysis, machine learning, and an interactive dashboard to answer the questions a real race strategist asks: which tyres, in what order, when to pit, and how risky is the plan.
+
+The project ships with **two dashboards** built on the same data and models:
+
+- **Plotly Dash dashboard (main, `dash_app/`)**: a 5-page multi-page app with a sidebar circuit selector, shareable URLs and click-to-select charts.
+- **Streamlit dashboard (original, `dashboard/`)**: the first version, a 4-page app, still included and working.
 
 **Live Capabilities:**
 
-- Predicts tire degradation per circuit and compound using validated ML models
-- Estimates tire "survival probability" using medical grade survival analysis techniques
-- Generates three ranked strategy options A/B/C per circuit, each with a calculated risk score
-- Visualizes everything through a dark-themed, interactive dashboard with real circuit maps, DRS/Braking zones, and turn-by-turn markers.
+- Predicts tyre degradation per circuit and compound using validated ML models
+- Estimates tyre "survival probability" using medical-grade survival analysis techniques
+- Generates three ranked strategy options (A/B/C) per circuit, each with a calculated risk score
+- Visualises everything through a dark-themed, interactive dashboard with real circuit maps, DRS/braking zones and turn-by-turn markers
 
 ---
 
@@ -25,113 +32,158 @@ A full stack F1 Strategy Intelligence tool built entirely on real 2024 Formula 1
 
 | Phase                              | What It Does                                                                                                                      |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 1 - Data collection                | Pulls the complete 2024 F1 season via FastF1: lap timing, pit stops, race results, weather, circuit telemetry                     |
-| 2 - Cleaning & Feature Engineering | Removes pit/safety-car/outlier/ laps; engineers 10 feature (fuel-corrected pace, stint progress, compound age ratio, etc.)        |
+| 1 - Data Collection                | Pulls the complete 2024 F1 season via FastF1: lap timing, pit stops, race results, weather, circuit telemetry                     |
+| 2 - Cleaning & Feature Engineering | Removes pit/safety-car/outlier laps; engineers 10 features (fuel-corrected pace, stint progress, compound age ratio, etc.)        |
 | 3 - Degradation Modeling           | Trains Polynomial, Ridge, and Random Forest per circuit/compound; cross-validated RMSE picks the winner                           |
-| 4 - Survival Analysis              | Kaplan-Meier survival curves + Cox Proportional Hazard models - borrowed from medical/reliability statistics                      |
+| 4 - Survival Analysis              | Kaplan-Meier survival curves + Cox Proportional Hazards models, borrowed from medical/reliability statistics                      |
 | 5 - Strategy Optimization          | Simulates every realistic 1-stop/2-stop strategy per circuit; outputs Plan A/B/C with risk scores                                 |
-| 6 - ML Models                      | Six Purpose-built models: Stint Length, Compound Selector, Strategy, Pit Window, Circuit Clustering (K-Means), Undercut Viability |
+| 6 - ML Models                      | Six purpose-built models: Stint Length, Compound Selector, Strategy, Pit Window, Circuit Clustering (K-Means), Undercut Viability |
 | 7 - Anomaly Detection              | DBSCAN independently validates Phase 2's manual data cleaning                                                                     |
-| 8 - Circuit Map Builder            | Builds broadcast-style circuit maps from real GPS telemetry - braking zones, DRS zones, turn markers, speed trap                  |
-| 9 - Dashboard                      | Four-page interactive Streamlit application tying everything together                                                             |
+| 8 - Circuit Map Builder            | Builds broadcast-style circuit maps from real GPS telemetry: braking zones, DRS zones, turn markers, speed trap                   |
+| 9 - Dashboard                      | Interactive dashboard tying everything together: Plotly Dash (main) and Streamlit (original)                                      |
 
 ---
 
-## The Dashboard
+## The Dashboard (Plotly Dash)
+
+Pick any of the 23 circuits from the sidebar and every page updates. The selected circuit is stored in the URL (e.g. `?circuit=Monaco`), so any view can be shared as a link.
+
+### Strategy
+
+Circuit map with key stats, plus Plan A/B/C cards showing stop count, compound sequence, predicted race time and a colour-coded risk badge (Low / Medium / High).
+
+![Strategy page](docs/dash_app/strategy.png)
+
+### Tyre Analysis
+
+Degradation curves per compound, Kaplan-Meier survival curves, stint-length distributions and compound pace comparison. When a compound has too few stints, the survival curve is replaced with a note instead of a misleading line.
+
+![Tyre Analysis page](docs/dash_app/tyre-analysis.png)
+
+### Model Insights
+
+SHAP feature importance, compound-selector probabilities by stint, an interactive **undercut viability gauge** (position, tyre life and compound sliders, ranked against all 23 circuits), and DBSCAN data-quality metrics showing flagged laps vs. manual cleaning.
+
+![Model Insights page](docs/dash_app/model-insights.png)
+
+### Season Overview
+
+Season-wide strategy landscape (1-stop vs. 2-stop), K-Means circuit clusters and compound usage. **Click a bar or a dot to jump straight to that circuit.**
+
+![Season Overview page](docs/dash_app/season-overview.png)
+
+### Pipeline
+
+All phases at a glance, with live file-presence checks (green/red) for every expected output, plus a **Data Explorer** to browse any processed or output CSV, filter by circuit and download it.
+
+![Pipeline page](docs/dash_app/pipeline.png)
+
+> All 23 circuits are available in the dashboard. **Brazil has no data**: the 2024 São Paulo GP was a fully wet race, and this project focuses on the dry compounds (SOFT, MEDIUM, HARD).
+
+---
+
+## The Original Streamlit Dashboard
+
+The first version of the dashboard, still included in `dashboard/`. It has four pages.
+
+<details>
+<summary><b>Show Streamlit screenshots</b></summary>
+
+![BoxBox Streamlit Dashboard - Circuit Intelligence](docs/streamlit/dashboard_page1.jpg)
 
 ### Page 1 - Circuit Intelligence
 
 _"All the screenshots shown of analysis are for Abu Dhabi circuit"_
 
-![Circuit Map with DRS and Braking Zones](docs/screenshots/circuit_map.png)
+![Circuit Map with DRS and Braking Zones](docs/streamlit/circuit_map.png)
 
-Interactive circuit map (smoothed track outline, solid red braking zones, dashed green DRS zones offset outside the track, auto-detected numbered turns, speed trap and start/finish markers) alongside Plan A/B/C strategy cards - each showing stop count, compound sequence, predicted race time, and a color-coded risk badge (Low/Medium/High).
+Interactive circuit map (smoothed track outline, solid red braking zones, dashed green DRS zones offset outside the track, auto-detected numbered turns, speed trap and start/finish markers) alongside Plan A/B/C strategy cards, each showing stop count, compound sequence, predicted race time, and a colour-coded risk badge (Low/Medium/High).
 
-![Strategy Cards - Plan A B C](docs/screenshots/strategy_cards.png)
+![Strategy Cards - Plan A B C](docs/streamlit/strategy_cards.png)
 
-### Page 2 - Tire Analysis
+### Page 2 - Tyre Analysis
 
-![Tire Degradation Curves](outputs/tire_degradation_curve.png)
+![Tyre Degradation Curves](outputs/tire_degradation_curve.png)
 
-Degradation Curves - predicted lap time vs. tire age, per compound, with regression slopes
+Degradation curves: predicted lap time vs. tyre age, per compound, with regression slopes.
 
-![Tire Survival Probability](outputs/survival_probability.png)
+![Tyre Survival Probability](outputs/survival_probability.png)
 
-Kaplan-Meier survival curves with confidence bands
+Kaplan-Meier survival curves with confidence bands. Here Medium and Hard tyres completely overlap each other, and Soft tyre probability was not acquired because of insufficient data.
 
-Here Medium and Hard Tyres completely overlap each other, and Soft tyres probability was not acquired cause of insufficient data
+![Stint Length Distribution](outputs/real_world_stint_length_distributor.png)
 
-![Stint Length Distributor](outputs/real_world_stint_length_distributor.png)
-
-Real World Stint Length Distribution (box plots)
+Real-world stint length distribution (box plots).
 
 ![Compound Pace Comparison](outputs/compound_pace_comparison.png)
 
-### Model Insights
+### Page 3 - Model Insights
 
 ![SHAP Feature Importance](outputs/SHAP_interpretation.png)
 
-SHAP feature Importance - what actually drives degradation at each circuit
+SHAP feature importance: what actually drives degradation at each circuit.
 
-![Compound Selection confidence](outputs/Compound_selection_stints.png)
+![Compound Selection Confidence](outputs/Compound_selection_stints.png)
 
-Compound Selector Confidence, with interactive stint-number slider
+Compound Selector confidence, with interactive stint-number slider.
 
 ![Undercut Viability & DBSCAN data-quality metrics](outputs/undercut_anomaly.png)
 
-Undercut Viability gauge and DBSCAN Anomaly Detection
+Undercut Viability gauge and DBSCAN anomaly detection.
 
-(These graphs are different for all 23 races, and can be accessed via the dashboard, here only the metrics and graphs of Abu Dhabi is shown)
-
-(As these project is focused more on Dry Compounds set(SOFT, MEDIUM, HARD), **Brazil has no data as in 2024, it was a full WET COMPOUND race**)
+(These graphs are different for all 23 races and can be accessed via the dashboard. Only the metrics and graphs for Abu Dhabi are shown here.)
 
 ### Page 4 - Season Overview
 
 ![Season Strategy Landscape](outputs/strategy_landscape.png)
 
-Full Season Strategy Landscape (1-stop vs. 2-stop by circuit)
+Full season strategy landscape (1-stop vs. 2-stop by circuit).
 
 ![Circuit Clusters](outputs/circuit_clusters.png)
 
-K-Means circuit cluster scatter plot
+K-Means circuit cluster scatter plot.
 
 ![Compound Usage Across the Season](outputs/compound_usage_across_season.png)
 
-Season-wide compound usage frequency
+Season-wide compound usage frequency.
+
+</details>
 
 ---
 
 ## Key Findings
 
-**Model selection isn't one-size-fits all** Random Forest won 39 of 59 circuit/compound degradation models, Ridge Regression won in 20, Polynomial won none - tire degradation is often non-linear, but genuinely linear at some circuits. Letting Cross Validation RMSE choose the model per circuit beat assuming one formula everywhere.
+**Model selection isn't one-size-fits-all.** Random Forest won 39 of 59 circuit/compound degradation models, Ridge Regression won 20, and Polynomial won none. Tyre degradation is often non-linear but genuinely linear at some circuits. Letting cross-validated RMSE choose the model per circuit beat assuming one formula everywhere.
 
-**Canada 2024 was a genuine data outlier and two independent methods agree on it** 80% of Canada's raw laps were removed during manual cleaning due to heavy Safety Car/VSC disruption. Phase 7's DBSCAN anomaly detection - a complete separate, unsupervised method - independently flagged Canada as one of the messiest races in the season, cross-validating the manual cleaning decision.
+**Canada 2024 was a genuine data outlier, and two independent methods agree on it.** 80% of Canada's raw laps were removed during manual cleaning due to heavy Safety Car/VSC disruption. Phase 7's DBSCAN anomaly detection, a completely separate unsupervised method, independently flagged Canada as one of the messiest races of the season, cross-validating the manual cleaning decision.
 
-**Cox Hazard models revealed real, statistically significant, circuit-specific risk drivers** Emilia Romagna and netherlands show fuel corrected pace as the dominant tire-failure risk factor (hazard ratio ≈ 2.1-2.2, p < 0.01); Austria's dominance factor is the track temperature instead.
+**Cox hazard models revealed real, statistically significant, circuit-specific risk drivers.** Emilia Romagna and the Netherlands show fuel-corrected pace as the dominant tyre-failure risk factor (hazard ratio ≈ 2.1-2.2, p < 0.01); Austria's dominant factor is track temperature instead.
 
-**Risk scores across circuits show genuine, validated variation** After fixing two upstream bugs (a Safety Car Probability calculation that was silently returning Zero for every circuit, and a Cox model that was failing to fit due to a colum-name mismatch), Plan A risk scores spans a real range from 9.6 (Belgium, lowest risk) to 24.2 (Great Britain, highest risk) - with a healhty spread of Low/Medium/High classification across the season rather than one flat bucket.
+**Risk scores across circuits show genuine, validated variation.** After fixing two upstream bugs (a Safety Car Probability calculation that was silently returning zero for every circuit, and a Cox model that was failing to fit due to a column-name mismatch), Plan A risk scores span a real range from 9.6 (Belgium, lowest risk) to 24.2 (Great Britain, highest risk), with a healthy spread of Low/Medium/High classifications across the season rather than one flat bucket.
 
-**Model accuracy is context-dependent, and that's disclosed rather than hidden** The Compound Selector, Strategy Outcome, and Undercut classifiers land in the 68-77% accuracy range - meaningfully lower than whats's acheivable on a deterministic physics problem, because F1 strategy also involves human decisions, competitor behavior, and genuine random (teamates, rival's errors, safety car timing) rather than fixed physical laws. this is treated as the understanding the problem's inherent noise ceiling, not a modeling flaw.
+**Model accuracy is context-dependent, and that's disclosed rather than hidden.** The Compound Selector, Strategy Outcome and Undercut classifiers land in the 68-77% accuracy range, meaningfully lower than what's achievable on a deterministic physics problem, because F1 strategy also involves human decisions, competitor behaviour and genuine randomness (teammates, rivals' errors, safety car timing) rather than fixed physical laws. This is treated as the problem's inherent noise ceiling, not a modelling flaw.
 
-**The 2024 Sao Paulo Grand Prix (Brazil) is intentionally excluded** The race was run entirely under wet-weather conditions - zero laps on dry compounds (SOFT/MEDIUM/HARD) - placing it outside this project's dry-tire degradation and strategy scope.
+**The 2024 São Paulo Grand Prix (Brazil) is intentionally excluded.** The race was run entirely under wet-weather conditions, with zero laps on dry compounds (SOFT/MEDIUM/HARD), placing it outside this project's dry-tyre degradation and strategy scope.
 
 ---
 
-### Known Limitations
+## Known Limitations
 
-- **Undercut Viability Classifier uses a documented proxy** True rival-vs-rival gap telemetry wasn't collected in Phase 1, so the model instead uses whether track position held or improved shortly after a pit stop as a stand-in signal. This is a real limitation, not full undercut modeling.
-- **Compound Selector and Undercut demo predictions use representative inputs** (e.g., a chosen stint number, a mid-field grid position) rather than live race state, since this is a strategy reference tool, not a live-race feed.
-- **DBSCAN flagged residual data-quality anomalies** (~1.5% of cleaned laps) most heavily in Japan, Australia, Spain, Azerbaijan, and Great Britain - worth awareness if extending this analysis further.
+- **Undercut Viability Classifier uses a documented proxy.** True rival-vs-rival gap telemetry wasn't collected in Phase 1, so the model instead uses whether track position held or improved shortly after a pit stop as a stand-in signal. In the Dash app the result is shown as a _relative rank_ across all 23 circuits rather than an absolute probability. This is a real limitation, not full undercut modelling.
+- **Compound Selector and Undercut demo predictions use representative inputs** (e.g. a chosen stint number, a mid-field grid position) rather than live race state, since this is a strategy reference tool, not a live-race feed.
+- **DBSCAN flagged residual data-quality anomalies** (~1.5% of cleaned laps), most heavily in Japan, Australia, Spain, Azerbaijan and Great Britain. Worth awareness if extending this analysis further.
+- **Trained on 2024 data only.** The 2026 regulation change introduces domain shift, so the models would need retraining on 2025/2026 data to be used for current races.
 
 ---
 
 ## Tech Stack
 
-- **Data Collection:** FastF1
-- **Data Science:** pandas, numpy, scikit-learn, SHAO, lifelines (survival analysis)
-- **Visualization:** Plotly
-- **Dashboard:** Streamlit
-- **Models:** Polynomial/Ridge Regression, Random forest Regression, Kaplan-Meier, Cox Propotional hazard, Gradient Boosting (classification & Regression), K-Means, DBSCAN, Logistic Regression
+- **Data Collection:** FastF1 (free; Jolpica-F1 and OpenF1 considered for future work)
+- **Data Science:** pandas, numpy, scikit-learn, SHAP, lifelines (survival analysis), joblib
+- **Visualisation:** Plotly
+- **Dashboards:** Plotly Dash + dash-bootstrap-components (main), Streamlit (original)
+- **Serving:** gunicorn
+- **Models:** Polynomial/Ridge Regression, Random Forest Regression, Kaplan-Meier, Cox Proportional Hazards, Gradient Boosting (classification & regression), K-Means, DBSCAN, Logistic Regression
 
 ---
 
@@ -140,18 +192,22 @@ Season-wide compound usage frequency
 ```
 boxbox/
 ├── docs/
-│   └── screenshots/
-│       ├── page1_circuit_intelligence.png
-│       ├── circuit_map.png
-│       ├── strategy_cards.png
-│       ├── tire_analysis.png
-│       ├── model_insights.png
-│       └── season_overview.png
+│   └── dash_app/
+│       ├── strategy.png            (Dash)
+│       ├── tyre-analysis.png       (Dash)
+│       ├── model-insights.png      (Dash)
+│       ├── season-overview.png     (Dash)
+│       ├── pipeline.png            (Dash)
+│   └── streamlit/
+│       ├── dashboard_page1.jpg     (Streamlit)
+│       ├── circuit_map.png         (Streamlit)
+│       └── strategy_cards.png      (Streamlit)
 │
-├── cache/                     (FastF1 cache — gitignored)
-├── data/                      (raw/processed/outputs — gitignored, regenerated by running phases)
-├── models/                    (trained .pkl models — gitignored, regenerated by Phase 3/4/6/7)
-├── circuit_maps/              (Plotly JSON per circuit — gitignored, regenerated by Phase 8)
+├── outputs/                   (chart images used by the Streamlit section)
+├── cache/                     (FastF1 cache - gitignored)
+├── data/                      (raw/processed/outputs - gitignored, regenerated by running phases)
+├── models/                    (trained .pkl models - gitignored, regenerated by Phase 3/4/6/7)
+├── circuit_maps/              (Plotly JSON per circuit - gitignored, regenerated by Phase 8)
 │
 ├── notebooks/
 │   ├── phase1_collection.ipynb
@@ -163,8 +219,22 @@ boxbox/
 │   ├── phase7_anomaly_detection.ipynb
 │   └── phase8_circuit_maps.ipynb
 │
-├── dashboard/
-│   ├── app.py                  (Page 1 — Circuit Intelligence, entry point)
+├── dash_app/                  (main dashboard - Plotly Dash)
+│   ├── app.py                 (entry point, sidebar, URL sync; server = app.server)
+│   ├── data.py                (data/model access layer)
+│   ├── figures.py             (all Plotly figures)
+│   ├── ui.py                  (reusable UI components)
+│   ├── requirements.txt
+│   ├── assets/style.css
+│   └── pages/
+│       ├── strategy.py
+│       ├── tyres.py
+│       ├── models.py
+│       ├── season.py
+│       └── pipeline.py
+│
+├── dashboard/                 (original dashboard - Streamlit)
+│   ├── app.py                 (Page 1 - Circuit Intelligence, entry point)
 │   └── pages/
 │       ├── 02_tire_analysis.py
 │       ├── 03_model_insights.py
@@ -189,38 +259,73 @@ boxbox/
 ## How to Run
 
 ```bash
-# 1. Install dependencies
+# 1. Install dependencies (project-wide, for the notebooks and Streamlit)
 pip install -r requirements.txt
 
 # 2. Phases 1-8 are Jupyter notebooks - open each one in order and run all top to bottom:
 notebooks/phase1_collection.ipynb
-notebooks/phase2_engineered.ipynb
+notebooks/phase2_engineering.ipynb
 notebooks/phase3_degradation.ipynb
 notebooks/phase4_survival.ipynb
 notebooks/phase5_optimizer.ipynb
 notebooks/phase6_ml_models.ipynb
 notebooks/phase7_anomaly_detection.ipynb
 notebooks/phase8_circuit_maps.ipynb
+```
 
-# 3. Launch the dashboard
+### 3a. Launch the Dash dashboard (main)
+
+```bash
+cd dash_app
+pip install -r requirements.txt
+python app.py
+```
+
+Then open **http://127.0.0.1:8050**.
+
+By default the app looks for `data/`, `models/` and `circuit_maps/` in the parent folder of `dash_app`. To point it somewhere else, set the `BOXBOX_BASE` environment variable:
+
+```bash
+# PowerShell
+$env:BOXBOX_BASE = "C:\path\to\BoxBox"
+```
+
+For production-style serving:
+
+```bash
+gunicorn app:server
+```
+
+### 3b. Launch the Streamlit dashboard (original)
+
+```bash
 python -m streamlit run dashboard/app.py
 ```
 
-**Note:** `data/`, `models/`, and `circuit_maps/` are gitignored since they're large and fully reproducible - clone the repo, run the notebooks in order, and everything regenrates locally.
+**Note:** `data/`, `models/` and `circuit_maps/` are gitignored since they're large and fully reproducible. Clone the repo, run the notebooks in order, and everything regenerates locally.
+
+---
 
 ## Data Coverage Note
 
-The 2024 Sao Paulo Grand Prix is excluded from this analysis - the run was run under wet-weather conditions with no dry-compound laps recorded. All other 23 circuits from the 2024 Calendar are covered.
+The 2024 São Paulo Grand Prix is excluded from this analysis, since the race was run under wet-weather conditions with no dry-compound laps recorded. All other 23 circuits from the 2024 calendar are covered.
+
+## Roadmap
+
+- [ ] Public deployment of the Dash app
+- [ ] Dedicated charts for extra Phase 3-6 outputs (model metrics, hazard ratios, model comparison)
+- [ ] Retrain on 2025/2026 data
 
 ## Acknowledgments
 
-- Data: Acquired using fastf1 library
-- Built as part of personal ML portfolio project
+- Data: acquired using the FastF1 library
+- Built as part of a personal ML portfolio project
+- F1, Formula 1 and related marks are trademarks of their respective owners
 
 ## Author
 
 **Aditya**
-Github: [@aditya-patra1011](https://github.com/aditya-patra1011)
+GitHub: [@aditya-patra1011](https://github.com/aditya-patra1011)
 Portfolio: [portfolioaditya-pearl.vercel.app](https://portfolioaditya-pearl.vercel.app)
 
 ## LICENSE
