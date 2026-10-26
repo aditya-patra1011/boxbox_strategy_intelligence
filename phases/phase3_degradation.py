@@ -34,7 +34,7 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import GroupKFold, cross_val_score
 
 warnings.filterwarnings('ignore')
 
@@ -68,16 +68,25 @@ log.addHandler(stream_handler)
 
 """FEATURES USED FOR MODELING
 
-These are the input features every model will use
+TyreLife is the core variable; TrackTemp gives the models context.
 
-TyreLife is the core variable - the others give context that helps Ridge and Random Forest capture real-world effects beyound just tire age.
+The target is each lap's fuel-corrected time relative to its own stint's average
+(StintDelta). That keeps the fuel effect out of the target and stops differences in
+pace between drivers from creating, or hiding, a tyre-age trend.
 
+Earlier versions predicted LapTimeSeconds with FuelCorrectedLapTime as an input. That
+input is the target plus 0.054 x LapNumber, so the target leaked into the features,
+and the "degradation rate" came out negative for 21 of 57 groups. StintProgress was
+dropped too: it divides by the stint's final tyre age, which isn't known until the
+stint is over.
 """
 
-FEATURES = ['TyreLife', 'TrackTemp', 'StintProgress', 'FuelCorrectedLapTime']
-TARGET = 'LapTimeSeconds'
+FEATURES = ['TyreLife', 'TrackTemp']
+TARGET = 'StintDelta'
 
 MIN_SAMPLES = 15 #Minimum laps required to train models for a group
+MIN_STINT_LAPS = 5 #Shorter stints say too little about wear within the stint
+CV_FOLDS = 5
 
 """LOAD ENGINEERED DATA"""
 
@@ -90,10 +99,28 @@ def load_data():
     models can't handle NaN inputs'''
 
     before = len(df)
-    df = df.dropna(subset=FEATURES + [TARGET])
+    df = df.dropna(subset=FEATURES + ['FuelCorrectedLapTime', 'LapTimeSeconds', 'Stint'])
     log.info(f"After dropping missing values: {len(df)}" f"(removed {before - len(df)})")
 
+    # One stint = one driver's run on one set of tyres at one race
+    df['StintId'] = df['CircuitName'] + '|' + df['Driver'] + '|' + df['Stint'].astype(int).astype(str)
+    df = df[df.groupby('StintId')['TyreLife'].transform('size') >= MIN_STINT_LAPS].copy()
+    df[TARGET] = df['FuelCorrectedLapTime'] - df.groupby('StintId')['FuelCorrectedLapTime'].transform('mean')
+    log.info(f"After keeping stints of {MIN_STINT_LAPS}+ laps: {len(df)} ({df['StintId'].nunique()} stints)")
+
     return df
+
+"""CROSS-VALIDATION
+
+Folds hold out whole stints, so laps from one stint are never in both the training
+and the test set (laps of the same stint are strongly correlated).
+"""
+
+def cv_rmse(model, X_values, y, groups):
+    folds = min(CV_FOLDS, len(set(groups)))
+    scores = cross_val_score(model, X_values, y, cv=GroupKFold(n_splits=folds), groups=groups,
+                             scoring='neg_root_mean_squared_error')
+    return -scores.mean()
 
 """POLYNOMIAL REGRESSION TRAINING
 
@@ -102,20 +129,14 @@ Fits a curved line using only TyreLife - captures the "cliff" shape without need
 Degree = 2 means it can fit a U-shaped or accelerating curve
 """
 
-def train_polynomial(X, y):
+def train_polynomial(X, y, groups):
     model = make_pipeline(
         PolynomialFeatures(degree = 2, include_bias = False),
         Ridge(alpha = 1.0)
     )
 
     X_single = X[['TyreLife']].values
-
-    kf = KFold(n_splits = 5, shuffle = True, random_state = 42)
-    scores = cross_val_score(
-        model, X_single, y, cv=kf,
-        scoring = 'neg_root_mean_squared_error'
-    )
-    rmse = -scores.mean()
+    rmse = cv_rmse(model, X_single, y, groups)
 
     model.fit(X_single, y)
     return model, rmse
@@ -127,17 +148,11 @@ Linear regression across ALL features with L2 regularization to prevent overfitt
 (e.g. StintProgress and TyreLife move togther)
 """
 
-def train_ridge(X, y):
+def train_ridge(X, y, groups):
     model = Ridge(alpha=1.0)
 
     X_full = X[FEATURES].values
-
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    scores = cross_val_score(
-        model, X_full, y, cv=kf,
-        scoring='neg_root_mean_squared_error'
-    )
-    rmse = -scores.mean()
+    rmse = cv_rmse(model, X_full, y, groups)
 
     model.fit(X_full, y)
     return model, rmse
@@ -147,7 +162,7 @@ def train_ridge(X, y):
 Ensemble of decison trees - captures non-linear interactions between all features automatically, n_estimators=100 trees, max_depth limited to avoid overfitting on small per-circuit sample sizes.
 """
 
-def train_random_forest(X, y):
+def train_random_forest(X, y, groups):
     model = RandomForestRegressor(
         n_estimators=100,
         max_depth=6,
@@ -157,43 +172,29 @@ def train_random_forest(X, y):
     )
 
     X_full = X[FEATURES].values
-
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    scores = cross_val_score(
-        model, X_full, y, cv=kf,
-        scoring='neg_root_mean_squared_error'
-    )
-    rmse = -scores.mean()
+    rmse = cv_rmse(model, X_full, y, groups)
 
     model.fit(X_full, y)
     return model, rmse
 
 """EXTRACT DEGRADATION RATE FROM SELECTED MODEL
 
-Regardless of which model won, we calculate: if TyreLife increases by 1 lap (all else held at its average), how much does predicted lap time change?
+Regardless of which model won: predict across the tyre ages actually seen (10th to 90th
+percentile), with TrackTemp held at its average, and take the slope of a straight line
+through those predictions = seconds lost per lap of tyre age.
 
-This is done by predicting at two tire-age points and taking the difference - works identically for all three model types since we just call .predict() twice.
+A slope over the whole range works the same for all three model types. The earlier
+"+1 lap from the average" step could land on a flat step of a Random Forest and read 0.
 """
 
-def calculate_degradation_rate(model, model_type, X, avg_tyre_life):
-    if model_type  == 'Polynomial':
-        base = model.predict([[avg_tyre_life]])[0]
-        plus_one = model.predict([[avg_tyre_life + 1]])[0]
+def calculate_degradation_rate(model, model_type, X):
+    ages = np.linspace(X['TyreLife'].quantile(0.1), X['TyreLife'].quantile(0.9), 25)
+    if model_type == 'Polynomial':
+        grid = ages.reshape(-1, 1)
     else:
-        '''Ridge and Random Forest need full features now
-        we hold every other feature as it's group average
-        and only change TyreLife'''
-        avg_row = X[FEATURES].mean()
-
-        base_row = avg_row.copy()
-        base_row['TyreLife'] = avg_tyre_life
-        plus_row = avg_row.copy()
-        plus_row['TyreLife'] = avg_tyre_life + 1
-
-        base = model.predict([base_row.values])[0]
-        plus_one = model.predict([plus_row.values])[0]
-
-    return round(plus_one - base, 4)
+        grid = np.column_stack([ages, np.full_like(ages, X['TrackTemp'].mean())])
+    predictions = model.predict(grid)
+    return round(float(np.polyfit(ages, predictions, 1)[0]), 4)
 
 """MAIN MODELLING LOOP
 
@@ -220,12 +221,16 @@ def run_degradation_modeling(df):
 
         X = group[FEATURES].copy()
         y = group[TARGET].copy()
+        groups = group['StintId'].values
+        if len(set(groups)) < 2:
+            log.warning(f" Skipping {circuit} / {compound} - only one stint")
+            continue
         avg_tyre_life = X['TyreLife'].mean()
 
         #Train all three models
-        poly_model, poly_rmse = train_polynomial(X, y)
-        ridge_model, ridge_rmse = train_ridge(X, y)
-        rf_model, rf_rmse = train_random_forest(X, y)
+        poly_model, poly_rmse = train_polynomial(X, y, groups)
+        ridge_model, ridge_rmse = train_ridge(X, y, groups)
+        rf_model, rf_rmse = train_random_forest(X, y, groups)
 
         #Pick the best model based on lowest RMSE
         candidates = {
@@ -237,9 +242,7 @@ def run_degradation_modeling(df):
         best_model, best_rmse = candidates[best_type]
 
         #Extract degradation rate from the WINNING model
-        deg_rate = calculate_degradation_rate(
-            best_model, best_type, X, avg_tyre_life
-        )
+        deg_rate = calculate_degradation_rate(best_model, best_type, X)
 
         log.info(f" {circuit} / {compound}: winner={best_type}"
                 f"(RMSE={best_rmse:.3f}) | deg_rate={deg_rate:+.4f} s/lap")
@@ -252,8 +255,9 @@ def run_degradation_modeling(df):
             'DegradationRate': deg_rate,
             'RMSE': round(best_rmse, 4),
             'SampleSize': len(group),
+            'Stints': len(set(groups)),
             'AvgTyreLife': round(avg_tyre_life, 1),
-            'AvgLapTime': round(y.mean(), 3)
+            'AvgLapTime': round(group['LapTimeSeconds'].mean(), 3)  # raw pace: Phase 5's baseline
         })
 
         #Save metrics for ALL three models (for comparison later)
@@ -341,12 +345,12 @@ def main():
     #Save degradation profiles
     deg_path = os.path.join(BASE, 'data', 'processed', 'degradation_profiles.csv')
     degradation_df.to_csv(deg_path, index=False)
-    log.info(f"Saved: {deg_path} ({len(deg_path)} rows)")
+    log.info(f"Saved: {deg_path} ({len(degradation_df)} rows)")
 
     #Save model comparison metrics
     metrics_path = os.path.join(BASE, 'data', 'outputs', 'model_metrics.csv')
     metrics_df.to_csv(metrics_path, index=False)
-    log.info(f"Saved: {metrics_path} ({len(metrics_path)} rows)")
+    log.info(f"Saved: {metrics_path} ({len(metrics_df)} rows)")
 
     #Save SHAP values
     shap_path = os.path.join(BASE, 'data', 'outputs', 'shap_values.csv')
