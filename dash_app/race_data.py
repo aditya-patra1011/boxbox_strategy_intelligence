@@ -235,3 +235,26 @@ def calendar(season, at=None):
 def podium(season, rnd):
     res = results(season)
     return res[(res["round"] == rnd) & (res["position"] <= 3)].sort_values("position")
+
+
+# ── teams (content/teams.json is curated; content/team_stats.json is computed by python -m ingest.teams) ──
+
+@lru_cache(maxsize=1)
+def teams():
+    path = CONTENT / "teams.json"
+    return json.loads(path.read_text(encoding="utf-8"))["teams"] if path.exists() else []
+
+
+@lru_cache(maxsize=1)
+def team_stats():
+    path = CONTENT / "team_stats.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"teams": {}}
+
+
+def team_lineup(season):
+    """Each team's drivers at the latest completed round, with their racing numbers."""
+    res = results(season)
+    if res.empty:
+        return res
+    last = res[res["round"] == res["round"].max()]
+    return last[["constructor_id", "team", "driver_id", "number", "code", "given_name", "family_name"]]         .sort_values(["constructor_id", "number"]).reset_index(drop=True)
