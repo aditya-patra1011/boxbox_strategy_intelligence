@@ -532,3 +532,98 @@ def replay_chunk(session_key, circuit_id, t_from, t_to):
     return {int(n): {"t": g["t"].tolist(), "x": g["rx"].tolist(), "y": g["ry"].tolist(),
                      "s": [None if pd.isna(v) else int(v) for v in g["speed"]]}
             for n, g in cs.groupby("driver_number")}
+
+
+# ── Race Analysis ──
+
+FUEL_PER_LAP = 0.054        # s/lap gained as fuel burns: same constant as Phase 2 (0.03 s/kg x 1.8 kg/lap)
+DRY = ("SOFT", "MEDIUM", "HARD")
+
+
+def clean_race_laps(laps, stints, pits, periods):
+    """Race laps that show true pace, cleaned the way Phase 2 cleaned 2024: no lap 1, no pit in/out
+    laps, no Safety Car / VSC / red-flag laps, dry compounds only, nothing over 2 standard
+    deviations above the mean. Adds tyre compound and age, and a fuel-corrected lap time."""
+    cols = ["driver_number", "lap_number", "lap_duration", "fuel_corrected", "compound", "tyre_age", "stint_number"]
+    if laps.empty or stints.empty:
+        return pd.DataFrame(columns=cols)
+    df = laps.dropna(subset=["lap_duration"]).copy()
+    df = df[(df["lap_number"] > 1) & (df["is_pit_out_lap"] != 1)]
+    pit_in = set(zip(pits["driver_number"], pits["lap_number"])) if not pits.empty else set()
+    df = df[[(n, l) not in pit_in for n, l in zip(df["driver_number"], df["lap_number"])]]
+    neutral = {l for p in periods.itertuples() for l in range(p.start_lap, p.end_lap + 1)} if not periods.empty else set()
+    df = df[~df["lap_number"].isin(neutral)]
+
+    st = stints.sort_values("stint_number")
+    def stint_of(n, lap):
+        s = st[(st["driver_number"] == n) & (st["lap_start"] <= lap)]
+        return s.iloc[-1] if not s.empty else None
+    rows = []
+    for r in df.itertuples():
+        s = stint_of(r.driver_number, r.lap_number)
+        if s is None or s["compound"] not in DRY:
+            continue
+        rows.append({"driver_number": r.driver_number, "lap_number": r.lap_number, "lap_duration": r.lap_duration,
+                     "fuel_corrected": r.lap_duration + FUEL_PER_LAP * r.lap_number, "compound": s["compound"],
+                     "tyre_age": int((s["tyre_age_at_start"] or 0) + r.lap_number - s["lap_start"]),
+                     "stint_number": int(s["stint_number"])})
+    out = pd.DataFrame(rows, columns=cols)
+    if out.empty:
+        return out
+    upper = out["lap_duration"].mean() + 2 * out["lap_duration"].std()
+    return out[out["lap_duration"] <= upper].reset_index(drop=True)
+
+
+def degradation(clean, min_laps=5):
+    """Seconds lost per lap of tyre age, per compound. Each stint is compared with itself (slope
+    within the stint), so a fast driver and a slow one can't fake a trend. Stints with fewer
+    than `min_laps` clean laps are left out."""
+    if clean.empty:
+        return pd.DataFrame(columns=["compound", "rate", "stints", "laps"])
+    keyed = clean.assign(stint=list(zip(clean["driver_number"], clean["stint_number"])))
+    keyed = keyed[keyed.groupby("stint")["lap_number"].transform("size") >= min_laps]
+    out = []
+    for compound, g in keyed.groupby("compound"):
+        x = g["tyre_age"] - g.groupby("stint")["tyre_age"].transform("mean")
+        y = g["fuel_corrected"] - g.groupby("stint")["fuel_corrected"].transform("mean")
+        if (x ** 2).sum() == 0:
+            continue
+        out.append({"compound": compound, "rate": round(float((x * y).sum() / (x ** 2).sum()), 4),
+                    "stints": g["stint"].nunique(), "laps": len(g)})
+    order = {c: i for i, c in enumerate(DRY)}
+    return pd.DataFrame(out, columns=["compound", "rate", "stints", "laps"]).sort_values(
+        "compound", key=lambda s: s.map(order)).reset_index(drop=True)
+
+
+def stint_relative(clean, min_laps=5):
+    """Each clean lap's fuel-corrected time relative to its stint's own average, for plotting
+    every stint on one scale against tyre age."""
+    if clean.empty:
+        return clean.assign(delta=[])
+    keyed = clean.assign(stint=list(zip(clean["driver_number"], clean["stint_number"])))
+    keyed = keyed[keyed.groupby("stint")["lap_number"].transform("size") >= min_laps]
+    return keyed.assign(delta=keyed["fuel_corrected"] - keyed.groupby("stint")["fuel_corrected"].transform("mean"))
+
+
+def race_pace(clean):
+    """Median clean, fuel-corrected lap per driver, fastest first."""
+    if clean.empty:
+        return pd.DataFrame(columns=["driver_number", "pace", "laps"])
+    g = clean.groupby("driver_number")["fuel_corrected"]
+    return pd.DataFrame({"pace": g.median(), "laps": g.size()}).reset_index().sort_values("pace").reset_index(drop=True)
+
+
+def session_driver_meta(session, drivers, colours):
+    """{driver_number: {code, team, colour}} for a stored session, coloured by team through
+    that round's results (OpenF1's own colour only as a fallback)."""
+    res = results(session["season"]) if session.get("season") else pd.DataFrame()
+    team = {}
+    if not res.empty:
+        r = res[res["round"] == session["round"]]
+        team = dict(zip(r["number"].astype(int), r["constructor_id"]))
+    out = {}
+    for d in drivers.itertuples():
+        n = int(d.driver_number)
+        fallback = f"#{d.team_colour}" if d.team_colour else "#9A9CA5"
+        out[n] = {"code": d.code, "team": d.team_name, "colour": colours.get(team.get(n), fallback)}
+    return out

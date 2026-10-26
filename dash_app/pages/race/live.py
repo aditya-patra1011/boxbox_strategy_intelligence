@@ -2,7 +2,6 @@ from functools import lru_cache
 
 import dash
 import dash_bootstrap_components as dbc
-import pandas as pd
 from dash import ClientsideFunction, Input, Output, Patch, State, callback, clientside_callback, dcc, html
 
 import figures as F
@@ -34,19 +33,6 @@ def _frames(key, ingested):
     return f
 
 
-def driver_meta(session, drivers):
-    """{driver_number: {code, colour, team}} using our team colours (via that round's results)."""
-    res = R.results(session["season"]) if session["season"] else pd.DataFrame()
-    team = {}
-    if not res.empty:
-        r = res[res["round"] == session["round"]]
-        team = dict(zip(r["number"].astype(int), r["constructor_id"]))
-    return {int(d["driver_number"]): {"code": d["code"], "team": d["team_name"],
-                                      "colour": F.TEAM_COLORS.get(team.get(int(d["driver_number"])),
-                                                                  f"#{d['team_colour']}" if d["team_colour"] else "#9A9CA5")}
-            for _, d in drivers.iterrows()}
-
-
 def layout(**_):
     session = R.latest_session()
     if not session:
@@ -60,7 +46,7 @@ def layout(**_):
     last_lap = f["laps"][f["laps"]["lap_number"] == total]
     t_end = (max(R.seconds_since(session["date_start"], last_lap["date_start"]) + last_lap["lap_duration"].fillna(0))
              if not last_lap.empty else max(starts.values()))
-    meta_drivers = driver_meta(session, f["session_drivers"])
+    meta_drivers = R.session_driver_meta(session, f["session_drivers"], F.TEAM_COLORS)
     by_lap = R.positions_by_lap(f["laps"], f["positions"])
     order = by_lap[by_lap["lap_number"] == by_lap["lap_number"].max()]["driver_number"].tolist() if not by_lap.empty else []
     order += [n for n in meta_drivers if n not in order]
