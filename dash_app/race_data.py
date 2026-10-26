@@ -211,6 +211,15 @@ def session_now(race, at):
     return None
 
 
+def countdown(delta):
+    """timedelta -> "4 days 2 h" / "3 h 20 min" / "12 min"."""
+    mins = int(delta.total_seconds() // 60)
+    days, hours, minutes = mins // 1440, mins % 1440 // 60, mins % 60
+    if days:
+        return f"{days} day{'s' if days > 1 else ''} {hours} h"
+    return f"{hours} h {minutes} min" if hours else f"{minutes} min"
+
+
 def calendar(season, at=None):
     """Every round with its weekend status and, for finished races, the winner."""
     at = at or now()
@@ -321,3 +330,80 @@ def positions_by_lap(laps, positions):
                         by="driver_number", direction="backward")
     return out.dropna(subset=["position"]).astype({"position": int})[["driver_number", "lap_number", "position"]] \
         .sort_values(["lap_number", "position"]).reset_index(drop=True)
+
+
+# ── race result tables ──
+
+def final_tyres(season):
+    """Each driver's last compound in every stored race of the season: round, number, compound."""
+    return query("""
+        SELECT s.round, t.driver_number AS number, t.compound
+        FROM stints t JOIN sessions s USING (session_key)
+        WHERE s.season = ? AND s.session_type = 'Race'
+          AND t.stint_number = (SELECT MAX(stint_number) FROM stints x
+                                WHERE x.session_key = t.session_key AND x.driver_number = t.driver_number)""",
+                 (season,))
+
+
+def fmt_gap(ms):
+    """Milliseconds -> "+13.078" or "+1:19.183"."""
+    s = ms / 1000
+    return f"+{int(s // 60)}:{s % 60:06.3f}" if s >= 60 else f"+{s:.3f}"
+
+
+def laps_down(n):
+    return f"+{n} Lap" + ("s" if n > 1 else "")
+
+
+def race_table(results_df, rnd, tyres=None):
+    """One race's classification with gap to the winner, interval to the car ahead, places
+    gained from the grid, final tyre and the fastest-lap holder."""
+    r = results_df[results_df["round"] == rnd].sort_values("position").copy()
+    if r.empty:
+        return r
+    lead_laps, lead_ms = r.iloc[0]["laps"], r.iloc[0]["time_millis"]
+    gaps, intervals, prev = [], [], None
+    for _, x in r.iterrows():
+        classified = x["status"] in ("Finished", "Lapped")
+        down = int(lead_laps - x["laps"]) if classified else 0
+        if not classified:
+            gaps.append("DNS" if x["status"] == "Did not start" else "DNF")
+            intervals.append("")
+        elif x["position"] == 1:
+            gaps.append(x["time_text"])
+            intervals.append("")
+        else:
+            gaps.append(laps_down(down) if down else fmt_gap(x["time_millis"] - lead_ms))
+            if prev is not None and prev["laps"] == x["laps"] and pd.notna(x["time_millis"]) and pd.notna(prev["time_millis"]):
+                intervals.append(fmt_gap(x["time_millis"] - prev["time_millis"]))
+            else:
+                intervals.append(laps_down(int(prev["laps"] - x["laps"])) if prev is not None else "")
+        prev = x if classified else prev
+    r["gap"], r["interval"] = gaps, intervals
+    # Places gained from the grid, for classified finishers only (grid 0 = pit-lane start).
+    r["gained"] = [int(g - p) if s in ("Finished", "Lapped") and g and g > 0 else None
+                   for g, p, s in zip(r["grid"], r["position"], r["status"])]
+    r["fastest_lap"] = r["fastest_lap_rank"] == 1
+    if tyres is not None and not tyres.empty:
+        t = tyres[tyres["round"] == rnd].set_index("number")["compound"]
+        r["final_tyre"] = r["number"].map(t)
+    else:
+        r["final_tyre"] = None
+    return r
+
+
+def season_grid(season):
+    """Finishing position of every driver at every round (rows in championship order) and the
+    matching cell labels: the position, or DNF / DNS."""
+    res, ds = results(season), driver_standings(season)
+    if res.empty:
+        return pd.DataFrame(), pd.DataFrame()
+    order = latest_table(ds, "driver_id")["driver_id"].tolist() if not ds.empty else res["driver_id"].unique().tolist()
+    order += [d for d in res["driver_id"].unique() if d not in order]
+    classified = res["status"].isin(["Finished", "Lapped"])
+    res = res.assign(cell=res["position"].where(classified),
+                     label=res["position"].astype("Int64").astype(str).where(classified,
+                           res["status"].map(lambda s: "DNS" if s == "Did not start" else "DNF")))
+    pos = res.pivot(index="driver_id", columns="round", values="cell").reindex(order)
+    lab = res.pivot(index="driver_id", columns="round", values="label").reindex(order)
+    return pos, lab

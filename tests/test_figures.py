@@ -14,3 +14,4 @@ def test_track_svg_fits_its_box_and_flips_y():
 
 def test_track_svg_without_outline():
     assert F.track_svg(None) is None
+

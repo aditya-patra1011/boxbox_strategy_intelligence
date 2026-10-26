@@ -941,3 +941,114 @@ body {
   color: var(--muted);
   line-height: 1.5;
 }
+
+/* Race Centre · Home */
+.bb-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  background: linear-gradient(145deg, #1b1c21 0%, #141519 100%);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--red);
+  border-radius: 16px;
+  padding: 24px 28px;
+}
+.bb-hero-live {
+  border-color: var(--red);
+}
+.bb-hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: #fff;
+  margin: 10px 0 4px;
+}
+.bb-hero-status {
+  margin: 12px 0 14px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #e8e8e8;
+}
+.bb-hero-schedule {
+  display: grid;
+  gap: 4px;
+  max-width: 420px;
+}
+.bb-hero-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.bb-hero-row-next {
+  background: rgba(232, 0, 45, 0.12);
+}
+.bb-hero-row-done {
+  opacity: 0.45;
+}
+.bb-hero-session {
+  font-weight: 600;
+  color: #e8e8e8;
+}
+.bb-hero-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+.bb-btn-ghost {
+  display: inline-block;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid #3a3b42;
+  color: #e8e8e8;
+  font-weight: 700;
+  text-decoration: none;
+}
+.bb-btn-ghost:hover {
+  border-color: #fff;
+  color: #fff;
+}
+.bb-hero-map {
+  text-align: center;
+}
+.bb-hero-track {
+  width: 100%;
+  max-height: 260px;
+}
+.bb-chip-fastest {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #6b2bd9;
+  color: #fff;
+  vertical-align: 1px;
+}
+.bb-inter {
+  background: #39b54a;
+  color: #fff;
+}
+.bb-wet {
+  background: #1e88e5;
+  color: #fff;
+}
+.bb-dd-race {
+  min-width: 280px;
+}
+@media (max-width: 991px) {
+  .bb-hero {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+  .bb-hero-title {
+    font-size: 24px;
+  }
+}
