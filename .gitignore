@@ -25,3 +25,5 @@ Thumbs.db
 #VS Code
 .vscode/
 .conda/
+#Race Centre store - rebuilt by: python -m ingest
+data/race_centre/
