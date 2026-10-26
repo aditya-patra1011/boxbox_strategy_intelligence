@@ -151,3 +151,28 @@ def test_strategy_links_point_at_circuits_in_the_content():
     ids = {c["circuit_id"] for c in json.loads((race_data.BASE / "content" / "circuits.json").read_text("utf-8"))["circuits"]}
     assert set(race_data.STRATEGY_CIRCUIT) <= ids
     assert {"madring", "sepang", "interlagos"} <= ids - set(race_data.STRATEGY_CIRCUIT)
+
+
+# ── teams ──
+
+def test_team_lineup_uses_the_latest_round_with_standing(store):
+    lineup = race_data.team_lineup(2026)
+    res = race_data.results(2026)
+    assert len(lineup) == (res["round"] == 3).sum()          # the fixture keeps 16 of round 3's results
+    assert lineup.groupby("constructor_id").size().le(2).all()
+    russell = lineup.set_index("driver_id").loc["russell"]
+    assert (russell["number"], russell["nationality"], russell["constructor_id"]) == (63, "British", "mercedes")
+    assert russell["champ_position"] >= 1 and russell["date_of_birth"] == "1998-02-15"
+
+
+@pytest.mark.parametrize("given, family, expected", [
+    ("Andrea Kimi", "Antonelli", "AA"), ("Max", "Verstappen", "MV"), ("Nico", "Hülkenberg", "NH"),
+    ("Guanyu", "Zhou", "GZ"), ("Jean-Éric", "Vergne", "JV")])
+def test_initials(given, family, expected):
+    assert race_data.initials(given, family) == expected
+
+
+def test_age_counts_birthdays():
+    at = race_data.utc("2026-08-25T00:00:00Z")
+    assert race_data.age("2006-08-25", at) == 20
+    assert race_data.age("2006-08-26", at) == 19
