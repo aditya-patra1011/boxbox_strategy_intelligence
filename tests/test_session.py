@@ -123,3 +123,13 @@ def test_thin_drops_samples_outside_the_session_window():
     location = [{"date": at(-80000), "x": 9, "y": 9}, {"date": at(5), "x": 1, "y": 1}, {"date": at(9000), "x": 2, "y": 2}]
     rows = S.thin(location, [], datetime.fromisoformat(T0), window=(-600, 7200))
     assert [r["t"] for r in rows] == [5.0]
+
+
+def test_latest_session_ignores_races_stored_only_for_their_stints(tmp_path, monkeypatch):
+    conn = store_with_races(tmp_path / "s.sqlite")
+    S.ingest_session(FakeOpenF1(key=11396), conn, session_key=11396, log=lambda *_: None)
+    upsert(conn, "sessions", [{"session_key": 99999, "season": 2026, "round": 19, "session_type": "Race",
+                               "date_start": "2026-11-01T20:00:00+00:00"}])          # newer, but stints only
+    conn.commit(), conn.close()
+    monkeypatch.setattr(race_data, "STORE", tmp_path / "s.sqlite")
+    assert race_data.latest_session()["session_key"] == 11396

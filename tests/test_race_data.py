@@ -5,16 +5,6 @@ from ingest.season import ingest_season
 from ingest.store import connect
 
 
-@pytest.fixture
-def store(client, tmp_path, monkeypatch):
-    path = tmp_path / "store.sqlite"
-    conn = connect(path)
-    ingest_season(client, conn, 2026, log=lambda *_: None)
-    conn.close()
-    monkeypatch.setattr(race_data, "STORE", path)
-    return path
-
-
 def test_missing_store_gives_empty_frames(tmp_path, monkeypatch):
     monkeypatch.setattr(race_data, "STORE", tmp_path / "nope.sqlite")
     assert not race_data.available()

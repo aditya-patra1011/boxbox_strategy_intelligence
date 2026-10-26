@@ -35,7 +35,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         clock,
         clock.playing ? "❚❚ Pause" : "▶ Play",
         !clock.playing,
-        lap === lapValue ? nu : lap,
+        // Always send the lap on first load: if this callback "doesn't change" it, Dash skips
+        // everything waiting on the lap and the running order stays empty.
+        lap === lapValue && trig ? nu : lap,
         need === chunkIndex ? nu : need,
         `Lap ${Math.max(lap, 1)} / ${meta.total_laps} · ${fmt(clock.t - meta.t_start)}`,
       ];

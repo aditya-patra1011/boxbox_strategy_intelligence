@@ -291,8 +291,11 @@ SESSION_TABLES = {"session_drivers", "laps", "stints", "pits", "race_control", "
 
 
 def latest_session(session_type="Race"):
-    """The newest stored session of a type, as a dict, or None."""
-    df = query("SELECT * FROM sessions WHERE session_type = ? ORDER BY date_start DESC LIMIT 1", (session_type,))
+    """The newest session of a type stored in full (with its laps), as a dict, or None.
+    Races stored only for their tyre stints (--season-stints) don't count."""
+    df = query("""SELECT * FROM sessions s WHERE session_type = ?
+                  AND EXISTS (SELECT 1 FROM laps l WHERE l.session_key = s.session_key)
+                  ORDER BY date_start DESC LIMIT 1""", (session_type,))
     return df.iloc[0].to_dict() if not df.empty else None
 
 
@@ -627,3 +630,26 @@ def session_driver_meta(session, drivers, colours):
         fallback = f"#{d.team_colour}" if d.team_colour else "#9A9CA5"
         out[n] = {"code": d.code, "team": d.team_name, "colour": colours.get(team.get(n), fallback)}
     return out
+
+
+# ── live status (free data: a session can only be shown once OpenF1 makes it free) ──
+
+FREE_AFTER = timedelta(minutes=30)          # OpenF1: free 30 minutes after a session ends
+
+
+def live_status(season, at=None):
+    """During a race weekend: what's on now and when its free data should arrive. None otherwise.
+
+    {race, session (on track now, or next), running, race_utc, race_data_at} where race_data_at
+    is the earliest the race replay can appear: a 2-hour race plus OpenF1's 30-minute delay."""
+    at = at or now()
+    cal = calendar(season, at) if season else pd.DataFrame()
+    live = cal[cal["status"] == "live"] if not cal.empty else cal
+    if live.empty:
+        return None
+    race = live.iloc[0].to_dict()
+    current = session_now(race, at)
+    start = utc(race["race_utc"])
+    return {"race": race["race_name"], "round": int(race["round"]),
+            "session": current[0] if current else None, "running": bool(current and current[2]),
+            "race_utc": start, "race_data_at": start + timedelta(hours=2) + FREE_AFTER}

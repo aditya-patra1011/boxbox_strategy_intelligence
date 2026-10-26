@@ -1,8 +1,11 @@
 """
-Small client for OpenF1's free historical API (https://openf1.org). No key needed for
-historical data; real-time access is a paid tier we don't use.
+Small client for OpenF1's free historical API (https://openf1.org). No key needed.
 
-The free tier is rate limited, so requests are spaced out and a 429 is retried after a pause.
+Free-tier rules this project is built around:
+- A session is "live" from 30 minutes before it starts until 30 minutes after it ends, and
+  live data is a paid tier we don't use. Everything outside that window is free.
+- Up to 3 requests a second and 30 a minute, so requests are spaced 2 s apart and a 429 is
+  retried after a pause.
 """
 
 import time
@@ -10,7 +13,7 @@ import time
 import requests
 
 BASE_URL = "https://api.openf1.org/v1"
-MIN_INTERVAL = 0.6          # seconds between requests
+MIN_INTERVAL = 2.0          # seconds between requests: the free tier allows 30 a minute
 RETRIES = 5
 
 
