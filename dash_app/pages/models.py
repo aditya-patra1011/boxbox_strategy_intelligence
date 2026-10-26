@@ -6,7 +6,7 @@ import data
 import figures as F
 from ui import card, graph, kpi, message, page_title
 
-dash.register_page(__name__, path="/models", name="Model Insights", title="Models · BoxBox", order=2, icon="🧠")
+dash.register_page(__name__, path="/models", name="Model Insights", title="Models · BoxBox", order=2, icon="🧠", section="lab")
 
 layout = html.Div([
     html.Div(id="mo-head"),
