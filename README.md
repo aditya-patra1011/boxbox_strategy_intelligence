@@ -1,30 +1,34 @@
-# BoxBox - F1 Strategy Intelligence Dashboard
+# BoxBox - F1 Race Centre & Strategy Intelligence
 
 _"Because some pit walls need help"_
 
 **BoxBox** is what your pit wall radios say when it's time to pit. The term became something of a meme thanks to Ferrari's chaotic strategy calls over the years. This project is a data-driven attempt to make that call the right one, every time.
 
-![BoxBox Dashboard - Strategy](docs/dash_app/strategy.png)
+![BoxBox Race Live - replay of the 2026 United States Grand Prix](docs/race_centre/race-live.png)
 
-_BoxBox is an unofficial fan and educational project. It is not affiliated with, endorsed by, or connected to Formula 1, the FIA, or any team._
+_BoxBox is an unofficial fan and educational project. It is not affiliated with, endorsed by, or connected to Formula 1, the FIA, or any team. It uses no official F1 logos, photos or track graphics: track maps are drawn from the cars' own position data, and drivers are shown as number cards._
 
 ---
 
 ## What It Is
 
-A full-stack F1 Strategy Intelligence tool built entirely on real 2024 Formula 1 season data. It combines tyre degradation modelling, survival analysis, machine learning, and an interactive dashboard to answer the questions a real race strategist asks: which tyres, in what order, when to pit, and how risky is the plan.
+One website with two sections, switched from the top bar:
 
-The project ships with **two dashboards** built on the same data and models:
+- **Race Centre**: the current season as it happens. A race weekend hub, a replay of the latest race with every car moving on track, race analysis, both championships, the calendar, and every team's history. It runs on **free data only** (Jolpica and OpenF1) and updates itself after each race.
+- **Strategy Lab**: the original BoxBox. Tyre degradation models, survival analysis and a strategy optimizer built on the full 2024 season, answering a race strategist's questions: which tyres, in what order, when to pit, and how risky the plan is.
 
-- **Plotly Dash dashboard (main, `dash_app/`)**: a 5-page multi-page app with a sidebar circuit selector, shareable URLs and click-to-select charts.
-- **Streamlit dashboard (original, `dashboard/`)**: the first version, a 4-page app, still included and working.
+The two link to each other. Race Centre's next-race card opens that circuit's strategy plans in Strategy Lab, and every Race Centre circuit card does the same where a model exists.
 
-**Live Capabilities:**
+**What it does:**
 
-- Predicts tyre degradation per circuit and compound using validated ML models
-- Estimates tyre "survival probability" using medical-grade survival analysis techniques
-- Generates three ranked strategy options (A/B/C) per circuit, each with a calculated risk score
-- Visualises everything through a dark-themed, interactive dashboard with real circuit maps, DRS/braking zones and turn-by-turn markers
+- Replays the latest race lap by lap, with Safety Car, VSC and red-flag periods detected from race control messages
+- Measures real tyre degradation from every clean lap and compares it with the BoxBox model
+- Tracks both championships round by round, including who can still mathematically win
+- Predicts tyre degradation per circuit and compound with cross-validated ML models (2024 data)
+- Estimates tyre "survival probability" with survival analysis (Kaplan-Meier, Cox)
+- Generates ranked strategy options (Plan A/B and, where an alternative exists, C) per circuit, each with a risk score
+
+The original **Streamlit** dashboard (`dashboard/`) is still included and working.
 
 ---
 
@@ -44,13 +48,63 @@ The project ships with **two dashboards** built on the same data and models:
 
 ---
 
-## The Dashboard (Plotly Dash)
+## Race Centre (2026 season, free data)
+
+Six pages, built on [Jolpica](https://github.com/jolpica/jolpica-f1) (calendar, results, standings, history) and [OpenF1](https://openf1.org)'s free historical data (laps, stints, race control, positions, car telemetry).
+
+### Home
+
+The live or next race: track outline, weekend schedule with a countdown, and a **"View strategy plans for this race"** link into Strategy Lab. Below it is any race's classification: gap to the winner, interval to the car ahead ("+1 Lap" for lapped cars), places gained, final tyre and a **FASTEST LAP** tag. Last comes a season heatmap of every driver's finish at every round; click a race to load its results.
+
+![Race Centre home](docs/race_centre/home.png)
+
+### Race Live
+
+A replay of the latest race. Press play (1×, 5×, 20× or 60×) or drag to any lap, and every car moves round the track in team colour. Alongside: the running order (gap, tyre and its age, pit stops), a **speed ticker** of the last 60 seconds for the drivers you pick, every driver's tyre stints, and a lap chart. Safety Car, VSC and red-flag laps are shaded and counted ("Virtual Safety Car · laps 51-53 (3 laps)"). `/live?lap=30` opens the replay at lap 30.
+
+The clock and the cars run in the browser ([`assets/replay.js`](dash_app/assets/replay.js)), filling in between the stored 2-per-second samples, and the server sends car data in 2-minute blocks.
+
+### Race Analysis
+
+Tyre degradation measured from every clean lap of the latest race. It uses the same cleaning and fuel correction as Phase 2, and takes the slope within each stint so driver pace differences can't fake a trend. That measurement is compared with the BoxBox model's 2024 rate for the circuit. The page also has pace through the race, race pace (median clean lap) and speed-trap rankings, plus a card explaining the method.
+
+![Race Analysis](docs/race_centre/race-analysis.png)
+
+### Standings
+
+Driver and constructor tables after the latest round (places gained, wins, gap to the leader), points or championship position round by round, and **who can still mathematically win**, from the race and sprint points left.
+
+![Championship standings](docs/race_centre/standings.png)
+
+### Calendar
+
+A card for every round with its track outline. Finished races show the winner, the live weekend gets a red **LIVE** badge, and the next race is tagged **NEXT**. Open a card for the circuit: first Formula 1 Grand Prix, races held, measured lap length, race distance, the weekend schedule, the podium and the fastest lap.
+
+![Season calendar](docs/race_centre/calendar.png)
+
+### Teams
+
+Every team in championship order with Constructors' and Drivers' titles and race wins, **counting predecessor teams** (Tyrrell → BAR → Honda → Brawn → Mercedes, Jordan → … → Aston Martin). Open a team for its two drivers (number-and-initials cards), titles by year, wins under each name, and a timeline of iconic moments. The lineage and timelines are hand-written in [`content/teams.json`](content/teams.json). The counts are computed from Jolpica into `content/team_stats.json`.
+
+![Teams](docs/race_centre/teams.png)
+
+### How "live" works on free data
+
+OpenF1's free tier has **no data while a session is running**: live timing is a paid tier. The whole session becomes free **30 minutes after it ends**. So Race Centre updates itself the moment the data is free:
+
+- **The watcher** (`python -m ingest.watch`) follows the calendar. From about 30 minutes after a race could finish, it tries each minute to store the race. It checks Jolpica every 15 minutes for the official results and standings, and refreshes the season every 12 hours otherwise.
+- **During a race weekend** the pages show a **LIVE** banner saying what's on track and roughly when the race data will appear. Until then they show the previous race.
+- **When a newer race is stored**, open pages notice within a minute and offer to load it.
+
+---
+
+## Strategy Lab (2024 models)
 
 Pick any of the 23 circuits from the sidebar and every page updates. The selected circuit is stored in the URL (e.g. `?circuit=Monaco`), so any view can be shared as a link.
 
 ### Strategy
 
-Circuit map with key stats, plus Plan A/B/C cards showing stop count, compound sequence, predicted race time and a colour-coded risk badge (Low / Medium / High).
+Circuit map with key stats, plus strategy cards showing stop count, compound sequence, predicted race time and a colour-coded risk badge (Low / Medium / High). **Plan A** is the optimizer's fastest strategy and **Plan B** what teams really did. **Plan C** is the best alternative with a different number of stops; 14 of 23 circuits have one, and at the other 9 no strategy with a different stop count fits within the tyre-life limits.
 
 ![Strategy page](docs/dash_app/strategy.png)
 
@@ -174,16 +228,23 @@ Season-wide compound usage frequency.
 - **Undercut Viability Classifier uses a documented proxy.** True rival-vs-rival gap telemetry wasn't collected in Phase 1, so the model instead uses whether track position held or improved shortly after a pit stop as a stand-in signal. In the Dash app the result is shown as a _relative rank_ across all 23 circuits rather than an absolute probability. This is a real limitation, not full undercut modelling.
 - **Compound Selector and Undercut demo predictions use representative inputs** (e.g. a chosen stint number, a mid-field grid position) rather than live race state, since this is a strategy reference tool, not a live-race feed.
 - **DBSCAN flagged residual data-quality anomalies** (~1.5% of cleaned laps), most heavily in Japan, Australia, Spain, Azerbaijan and Great Britain. Worth awareness if extending this analysis further.
-- **Trained on 2024 data only.** The 2026 regulation change introduces domain shift, so the models would need retraining on 2025/2026 data to be used for current races.
+- **Strategy Lab is trained on 2024 data only.** The 2026 regulation change introduces domain shift, so the models would need retraining on 2025/2026 data to be used for current races. Race Analysis shows the gap: measured 2026 wear at Austin is +0.05-0.08 s/lap, while the model's 2024 rates there are about +0.01.
+- **Plan C exists at 14 of 23 circuits.** Elsewhere the optimizer finds no strategy with a different number of stops within its tyre-life limits.
+- **No timing during a session.** OpenF1's free tier makes a session available 30 minutes after it ends, so Race Centre replays races rather than showing them live. Jolpica's official results usually follow within a few hours.
+- **Measured lap lengths are the racing line.** Calendar lap lengths are measured from the pole lap's car positions. They read about 1-2% under the official centreline length (median −1.4% across 22 published lengths), and they're labelled that way.
+- **Haas 2018 in Jolpica.** Jolpica ranks Haas 6th in 2018 because it combines Force India's points from before and after its mid-season rescue. The Teams timeline uses the official 5th.
+- **The phase scripts use a fixed path.** `phases/*.py` set `BASE = r'C:\Users\adity\Desktop\BoxBox'`; change it if the repo lives elsewhere.
 
 ---
 
 ## Tech Stack
 
-- **Data Collection:** FastF1 (free; Jolpica-F1 and OpenF1 considered for future work)
+- **Data Collection:** FastF1 (2024 season, Strategy Lab), [Jolpica F1 API](https://github.com/jolpica/jolpica-f1) and [OpenF1](https://openf1.org) free historical data (2026 season, Race Centre). FastF1 can't load 2026 timing without an F1 account, so Race Centre doesn't use it.
+- **Storage:** SQLite for Race Centre data (`data/race_centre/`, gitignored); committed JSON for circuit outlines and team content (`content/`)
 - **Data Science:** pandas, numpy, scikit-learn, SHAP, lifelines (survival analysis), joblib
-- **Visualisation:** Plotly
+- **Visualisation:** Plotly; a little browser-side JavaScript for the race replay
 - **Dashboards:** Plotly Dash + dash-bootstrap-components (main), Streamlit (original)
+- **Testing:** pytest (86 tests on saved API responses; no network needed)
 - **Serving:** gunicorn
 - **Models:** Polynomial/Ridge Regression, Random Forest Regression, Kaplan-Meier, Cox Proportional Hazards, Gradient Boosting (classification & regression), K-Means, DBSCAN, Logistic Regression
 
@@ -194,20 +255,31 @@ Season-wide compound usage frequency.
 ```
 boxbox/
 ├── docs/
-│   └── dash_app/
-│       ├── strategy.png            (Dash)
-│       ├── tyre-analysis.png       (Dash)
-│       ├── model-insights.png      (Dash)
-│       ├── season-overview.png     (Dash)
-│       ├── pipeline.png            (Dash)
-│   └── streamlit/
-│       ├── dashboard_page1.jpg     (Streamlit)
-│       ├── circuit_map.png         (Streamlit)
-│       └── strategy_cards.png      (Streamlit)
+│   ├── race_centre/           (Race Centre screenshots)
+│   ├── dash_app/              (Strategy Lab screenshots)
+│   └── streamlit/             (original Streamlit screenshots)
+│
+├── ingest/                    (Race Centre data: free APIs -> local SQLite store)
+│   ├── jolpica.py             (Jolpica client: calendar, results, standings)
+│   ├── openf1.py              (OpenF1 client, kept under the free 30 requests/minute)
+│   ├── season.py, __main__.py (python -m ingest --season 2026)
+│   ├── session.py             (python -m ingest.session: one race in full, or --season-stints)
+│   ├── circuits.py            (python -m ingest.circuits: track outlines + circuit facts)
+│   ├── teams.py               (python -m ingest.teams: titles and wins through team lineage)
+│   ├── watch.py               (python -m ingest.watch: keeps everything up to date)
+│   └── store.py               (SQLite schema)
+│
+├── content/                   (committed Race Centre content)
+│   ├── circuits/              (one track outline per circuit, from OpenF1 car positions)
+│   ├── circuits.json          (first GP, races held, racing-line length, laps)
+│   ├── teams.json             (hand-written: lineage, bases, colours, timelines)
+│   └── team_stats.json        (computed: titles and wins per team)
+│
+├── tests/                     (pytest; saved API responses in tests/fixtures)
 │
 ├── outputs/                   (chart images used by the Streamlit section)
 ├── cache/                     (FastF1 cache - gitignored)
-├── data/                      (raw/processed/outputs - gitignored, regenerated by running phases)
+├── data/                      (raw/processed/outputs and race_centre/ store - gitignored, regenerated)
 ├── models/                    (trained .pkl models - gitignored, regenerated by Phase 3/4/6/7)
 ├── circuit_maps/              (Plotly JSON per circuit - gitignored, regenerated by Phase 8)
 │
@@ -222,14 +294,18 @@ boxbox/
 │   └── phase8_circuit_maps.ipynb
 │
 ├── dash_app/                  (main dashboard - Plotly Dash)
-│   ├── app.py                 (entry point, sidebar, URL sync; server = app.server)
-│   ├── data.py                (data/model access layer)
+│   ├── app.py                 (entry point, section switcher, sidebar, URL sync; server = app.server)
+│   ├── data.py                (Strategy Lab data/model access)
+│   ├── race_data.py           (Race Centre data access, read-only)
+│   ├── live_status.py         (live-weekend banner, "new data is in" check)
 │   ├── figures.py             (all Plotly figures)
 │   ├── ui.py                  (reusable UI components)
 │   ├── requirements.txt
 │   ├── assets/style.css
+│   ├── assets/replay.js       (Race Live replay clock and drawing, in the browser)
 │   └── pages/
-│       ├── strategy.py
+│       ├── race/              (Race Centre: home, live, analysis, standings, calendar, teams)
+│       ├── strategy.py        (Strategy Lab)
 │       ├── tyres.py
 │       ├── models.py
 │       ├── season.py
@@ -252,6 +328,7 @@ boxbox/
 │   ├── phase7_anomaly_detection.py
 │   └── phase8_circuit_maps.py
 ├── requirements.txt
+├── requirements-dev.txt       (pytest)
 ├── .gitignore
 └── README.md
 ```
@@ -260,51 +337,102 @@ boxbox/
 
 ## How to Run
 
-```bash
-# 1. Install dependencies (project-wide, for the notebooks and Streamlit)
-pip install -r requirements.txt
+All commands below are run from the repo root unless they say `cd dash_app`. **Use the same Python environment for every command:** `No module named 'dash'` means a command ran in a different one. The examples use `python`; on the author's machine that is the project environment, `.\.conda\python.exe`.
 
-# 2. Phases 1-8 are Jupyter notebooks - open each one in order and run all top to bottom:
-notebooks/phase1_collection.ipynb
-notebooks/phase2_engineering.ipynb
-notebooks/phase3_degradation.ipynb
-notebooks/phase4_survival.ipynb
-notebooks/phase5_optimizer.ipynb
-notebooks/phase6_ml_models.ipynb
-notebooks/phase7_anomaly_detection.ipynb
-notebooks/phase8_circuit_maps.ipynb
+### 1. Set up (once)
+
+```bash
+python -m venv .venv
 ```
 
-### 3a. Launch the Dash dashboard (main)
+```bash
+.venv\Scripts\activate
+```
+
+```bash
+pip install -r requirements.txt -r dash_app/requirements.txt -r requirements-dev.txt
+```
+
+On macOS or Linux, activate with `source .venv/bin/activate`.
+
+### 2. Get the Race Centre data (once, then the watcher keeps it fresh)
+
+| Command | What it stores | Time |
+| --- | --- | --- |
+| `python -m ingest --season 2026` | Calendar, results, drivers, both championships after every round | ~30 s |
+| `python -m ingest.session` | The latest finished race in full: laps, stints, race control, positions, gaps, car telemetry | ~5 min |
+| `python -m ingest.session --season-stints 2026` | Just the tyre stints of every finished race (for the final-tyre column) | ~1 min |
+
+Circuit outlines and team content are committed in `content/`. They only need rebuilding with `python -m ingest.circuits --season 2026` and `python -m ingest.teams` when the calendar or the titles change.
+
+### 3. Start the dashboard
 
 ```bash
 cd dash_app
-pip install -r requirements.txt
+```
+
+```bash
 python app.py
 ```
 
-Then open **http://127.0.0.1:8050**.
+Open **http://127.0.0.1:8050**. Race Centre opens first, and the top-right switch goes to Strategy Lab. Press **Ctrl+C** to stop.
 
-By default the app looks for `data/`, `models/` and `circuit_maps/` in the parent folder of `dash_app`. To point it somewhere else, set the `BOXBOX_BASE` environment variable:
+### 4. Keep it up to date (a second terminal)
 
 ```bash
-# PowerShell
-$env:BOXBOX_BASE = "C:\path\to\BoxBox"
+python -m ingest.watch
 ```
 
-For production-style serving:
+It prints one line a minute, usually "nothing due". During a race weekend it stores the race about 30 minutes after the chequered flag, then the official results once Jolpica has them. `python -m ingest.watch --once` runs a single pass, for Windows Task Scheduler or cron.
+
+### 5. Run the tests
+
+```bash
+python -m pytest tests
+```
+
+The suite runs on saved API responses, so it needs no network.
+
+### Strategy Lab data (Phases 1-8)
+
+`data/`, `models/` and `circuit_maps/` are gitignored because they're large and fully reproducible. Run the phase scripts in order:
+
+```bash
+python phases/phase1_collection.py
+```
+
+Then `phase2_engineering.py` through `phase8_circuit_maps.py` the same way. **The scripts in `phases/` are the source of truth**: they include the Phase 3 degradation fix. The notebooks in `notebooks/` are the original exploratory versions, and `notebooks/phase3_degradation.ipynb` differs from the fixed script, so don't use it to regenerate the models.
+
+### Settings (environment variables)
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `BOXBOX_BASE` | the repo folder | Where `data/`, `models/`, `circuit_maps/` and `content/` live |
+| `BOXBOX_STORE` | `data/race_centre/boxbox.sqlite` | The Race Centre store, for both the app and the ingest |
+| `BOXBOX_NOW` | the real clock | Pins the clock (ISO time), e.g. `2026-10-31T21:30:00Z` to see a live race weekend |
+
+In PowerShell, for example: `$env:BOXBOX_NOW = "2026-10-31T21:30:00Z"`, then start the app.
+
+For production-style serving from `dash_app/`:
 
 ```bash
 gunicorn app:server
 ```
 
-### 3b. Launch the Streamlit dashboard (original)
+Run the watcher next to it.
+
+### Troubleshooting
+
+- **`No module named 'dash'`**: the command ran in a Python without the packages. Activate the environment from step 1, or call its Python directly.
+- **Don't use `streamlit run` on `dash_app/app.py`**: it's a Dash app (`python app.py`). Streamlit is only for the original dashboard below.
+- **"No Race Centre data yet" on a page**: run the step 2 commands.
+- **"Address already in use"**: another copy of the app is running on port 8050; close it or press Ctrl+C in its window.
+
+### The original Streamlit dashboard
 
 ```bash
 python -m streamlit run dashboard/app.py
 ```
-
-**Note:** `data/`, `models/` and `circuit_maps/` are gitignored since they're large and fully reproducible. Clone the repo, run the notebooks in order, and everything regenerates locally.
 
 ---
 
@@ -314,13 +442,17 @@ The 2024 São Paulo Grand Prix is excluded from this analysis, since the race wa
 
 ## Roadmap
 
-- [ ] Public deployment of the Dash app
+- [x] Race Centre: 2026 season pages, race replay, race analysis and a watcher that updates on free data
+- [x] Fix target leakage in the Phase 3 degradation model
+- [ ] Public deployment of the Dash app (app + watcher)
+- [ ] Bring `notebooks/` in line with the fixed `phases/` scripts
+- [ ] Retrain Strategy Lab on 2025/2026 data (Race Centre already stores 2026 races)
+- [ ] Look at why Phase 5 finds no Plan C at 9 circuits (and Monaco's lap-5 stop)
 - [ ] Dedicated charts for extra Phase 3-6 outputs (model metrics, hazard ratios, model comparison)
-- [ ] Retrain on 2025/2026 data
 
 ## Acknowledgments
 
-- Data: acquired using the FastF1 library
+- Data: [FastF1](https://github.com/theOehrly/Fast-F1) (2024 season), [Jolpica F1 API](https://github.com/jolpica/jolpica-f1) and [OpenF1](https://openf1.org) (2026 season, free historical data)
 - Built as part of a personal ML portfolio project
 - F1, Formula 1 and related marks are trademarks of their respective owners
 

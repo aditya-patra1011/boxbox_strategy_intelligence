@@ -34,7 +34,7 @@ def _frames(key, ingested):
     return f
 
 
-def layout(**_):
+def layout(lap=None, **_):
     session = R.latest_session()
     if not session:
         return html.Div([page_title("Race Live", "Replays the latest session, or follows it live while it runs."),
@@ -57,6 +57,8 @@ def layout(**_):
     race = R.races(session["season"]).set_index("round").loc[session["round"]] if session["round"] else None
     title = race["race_name"] if race is not None else session["session_name"]
 
+    # /live?lap=30 opens the replay at the start of that lap, so a moment of the race can be shared
+    first_lap = min(max(int(lap), 1), total) if str(lap or "").isdigit() and total else 1
     meta = {"t_start": starts.get(1, 0) - 5, "t_end": round(t_end + 20, 1), "chunk": CHUNK, "total_laps": total,
             "lap_starts": starts, "drivers": meta_drivers}
 
@@ -72,7 +74,7 @@ def layout(**_):
             dbc.RadioItems(id="rl-rate", value=20, inline=True, className="bb-radio",
                            options=[{"label": f"{r}×", "value": r} for r in RATES]),
             html.Div(id="rl-label", className="bb-replay-label"),
-            html.Div(dcc.Slider(1, total, 1, value=1, id="rl-lap", updatemode="mouseup",
+            html.Div(dcc.Slider(1, total, 1, value=first_lap, id="rl-lap", updatemode="mouseup",
                                 marks={l: str(l) for l in range(0, total + 1, 10) if l} | {1: "1", total: str(total)},
                                 tooltip={"placement": "bottom"}), className="bb-replay-slider"),
         ], className="bb-replay-bar"),
@@ -103,7 +105,8 @@ def layout(**_):
         dcc.Store(id="rl-meta", data=meta),
         dcc.Store(id="rl-session", data={"key": key, "circuit": session["circuit_id"], "start": session["date_start"],
                                          "season": session["season"], "round": session["round"]}),
-        dcc.Store(id="rl-clock", data={"t": meta["t_start"], "playing": False}),
+        dcc.Store(id="rl-clock", data={"t": starts.get(first_lap, meta["t_start"]) if first_lap > 1 else meta["t_start"],
+                                       "playing": False}),
         dcc.Store(id="rl-need", data=None),
         dcc.Store(id="rl-chunk", data=None),
     ], className="bb-fade")
