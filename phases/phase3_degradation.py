@@ -255,7 +255,10 @@ def run_degradation_modeling(df):
             'SampleSize': len(group),
             'Stints': len(set(groups)),
             'AvgTyreLife': round(avg_tyre_life, 1),
-            'AvgLapTime': round(group['LapTimeSeconds'].mean(), 3)  # raw pace: Phase 5's baseline
+            'AvgLapTime': round(group['LapTimeSeconds'].mean(), 3),
+            # Pace with the fuel effect taken out: compounds run at different points in the
+            # race (Hards late, on a light car), so raw averages make them look faster than they are
+            'AvgFuelCorrectedLapTime': round(group['FuelCorrectedLapTime'].mean(), 3)
         })
 
         #Save metrics for ALL three models (for comparison later)
