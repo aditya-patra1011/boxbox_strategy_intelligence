@@ -104,7 +104,7 @@ Pick any of the 23 circuits from the sidebar and every page updates. The selecte
 
 ### Strategy
 
-Circuit map with key stats, plus strategy cards showing stop count, compound sequence, predicted race time and a colour-coded risk badge (Low / Medium / High). **Plan A** is the optimizer's fastest strategy and **Plan B** what teams really did. **Plan C** is the fastest strategy with a different number of stops (often a three-stop where a one-stop can't fit the tyre life seen in 2024).
+Circuit map with key stats, plus strategy cards showing stop count, compound sequence, predicted race time and a colour-coded risk badge (Low / Medium / High). **Plan A** is the optimizer's fastest strategy and **Plan B** what teams really did (the most common strategy among 2024 finishers, shown where the race was dry). **Plan C** is the fastest strategy with a different number of stops (often a three-stop where a one-stop can't fit the tyre life seen in 2024).
 
 ![Strategy page](docs/dash_app/strategy.png)
 
@@ -215,9 +215,13 @@ Season-wide compound usage frequency.
 
 **Raw average lap times made Hard tyres look faster than they are.** Phase 5 originally took each compound's pace from its raw average lap time. But Hards are mostly run late in a race on a light car, and Mediums early on a heavy one. At Australia the raw averages had Hard 0.84 s a lap faster than Medium; fuel-corrected, Medium is 0.31 s faster. The optimizer believed Hard was the quick tyre and used the shortest stint the rules allowed on anything else, so plans opened with a 5-lap stint. Pace now comes from the fuel-corrected average, and each circuit has its own minimum stint (the 10th percentile of the opening stints teams really ran there in 2024, at least 5 laps). Short stints fell from 14 of 60 plans to 9 of 69, and in Plan A from 5 circuits to 2. Predicted race times stay within a median +0.5% of the real 2024 winners'.
 
+**The last 5-lap opening stints came from flat tyre wear, not good strategy.** At Canada and Monaco a 5-lap and a 10-lap opening stint are within a second of each other, and the model had no reason to avoid stopping on lap 5. Two changes fix that. First, a stop on laps 1-5 now costs what it really cost in 2024: across 557 green-flag stops (in-lap to three laps after, against the driver's own pace either side), early stops lost 4.5 s more than later ones, as the car rejoins a still-bunched field. That comes from only 9 early stops, so it's a rough figure. Second, plans within 1 s of each other count as a tie at the model's accuracy, and the tie goes to the plan with the longer shortest stint. Monaco's Plan A is now Soft 10 → Hard 68, and no plan opens with a stint of 5 laps or fewer.
+
+**Plan B had been copying Plan C at six circuits.** Plan B is meant to be what teams really did, but it was built from the cleaned laps, which drop whole stints (wet running, red-flag and safety-car laps). At Canada, Great Britain, Japan, Monaco and Qatar no driver's stints added up to their stop count, and Italy's real Hard stint ran past the tyre-life ceiling. Each time Plan B quietly fell back to Plan C. It now comes from the raw laps of drivers who finished, with 1-2 lap stints (lap-1 red-flag tyre changes, stint-numbering glitches) folded into the next stint. It skips the tyre-life ceiling, because teams really did run those stints. Canada and Great Britain were partly wet, and the degradation model only covers dry tyres, so they now show no Plan B instead of a copy.
+
 **Cox hazard models revealed real, statistically significant, circuit-specific risk drivers.** Emilia Romagna and the Netherlands show fuel-corrected pace as the dominant tyre-failure risk factor (hazard ratio ≈ 2.1-2.2, p < 0.01); Austria's dominant factor is track temperature instead.
 
-**Risk scores across circuits show genuine, validated variation.** After fixing two upstream bugs (a Safety Car Probability calculation that was silently returning zero for every circuit, and a Cox model that was failing to fit due to a column-name mismatch), Plan A risk scores span a real range from 0.2 (Singapore, lowest risk) to 28.8 (Great Britain, highest risk). Risk levels are cut at the thirds of every plan's score (Low ≤ 4.3, Medium ≤ 11.9), which puts Plan A at 7 Low, 4 Medium and 12 High across the season rather than one flat bucket.
+**Risk scores across circuits show genuine, validated variation.** After fixing two upstream bugs (a Safety Car Probability calculation that was silently returning zero for every circuit, and a Cox model that was failing to fit due to a column-name mismatch), Plan A risk scores span a real range from 0.2 (Singapore, lowest risk) to 28.0 (Saudi Arabia, highest risk). Risk levels are cut at the thirds of every plan's score (Low ≤ 4.2, Medium ≤ 10.7), which puts Plan A at 5 Low, 7 Medium and 11 High across the season rather than one flat bucket.
 
 **Model accuracy is context-dependent, and that's disclosed rather than hidden.** The Compound Selector, Strategy Outcome and Undercut classifiers land in the 68-77% accuracy range, meaningfully lower than what's achievable on a deterministic physics problem, because F1 strategy also involves human decisions, competitor behaviour and genuine randomness (teammates, rivals' errors, safety car timing) rather than fixed physical laws. This is treated as the problem's inherent noise ceiling, not a modelling flaw.
 
@@ -231,7 +235,8 @@ Season-wide compound usage frequency.
 - **Compound Selector and Undercut demo predictions use representative inputs** (e.g. a chosen stint number, a mid-field grid position) rather than live race state, since this is a strategy reference tool, not a live-race feed.
 - **DBSCAN flagged residual data-quality anomalies** (~1.5% of cleaned laps), most heavily in Japan, Australia, Spain, Azerbaijan and Great Britain. Worth awareness if extending this analysis further.
 - **Strategy Lab is trained on 2024 data only.** The 2026 regulation change introduces domain shift, so the models would need retraining on 2025/2026 data to be used for current races. Race Analysis shows the gap: measured 2026 wear at Austin is +0.05-0.08 s/lap, while the model's 2024 rates there are about +0.01.
-- **Two plans still open with a 5-lap stint.** Canada and Monaco's 2024 races (a wet start, and a red flag on lap 1) give them a 5-lap minimum. With fuel-corrected pace, Hard is genuinely the better tyre there, and the model has no traffic or pit-timing costs to discourage a very early stop. Great Britain's floor (19 laps, from a wet-to-dry race) leaves no valid strategy, so it falls back to 5.
+- **The early-stop cost rests on 9 stops.** Only 9 green-flag stops in 2024 came on laps 1-5, so the +4.5 s figure is rough, and it's one value for every circuit. Great Britain's minimum stint (19 laps, from a wet-to-dry race) leaves no valid strategy, so it falls back to 5.
+- **No Plan B for wet races.** Canada and Great Britain 2024 were run partly on intermediates, which the degradation model doesn't cover, so the app shows a note in place of Plan B there.
 - **No timing during a session.** OpenF1's free tier makes a session available 30 minutes after it ends, so Race Centre replays races rather than showing them live. Jolpica's official results usually follow within a few hours.
 - **Measured lap lengths are the racing line.** Calendar lap lengths are measured from the pole lap's car positions. They read about 1-2% under the official centreline length (median −1.4% across 22 published lengths), and they're labelled that way.
 - **Haas 2018 in Jolpica.** Jolpica ranks Haas 6th in 2018 because it combines Force India's points from before and after its mid-season rescue. The Teams timeline uses the official 5th.
@@ -451,7 +456,8 @@ The 2024 São Paulo Grand Prix is excluded from this analysis, since the race wa
 - [x] Bring the `phases/` scripts for Phases 1, 2 and 4-8 up to date with their newer notebooks, and re-run Phase 5
 - [ ] Retrain Strategy Lab on 2025/2026 data (Race Centre already stores 2026 races)
 - [x] Plan C at every circuit (three-stop search) and fewer 5-lap opening stints (fuel-corrected compound pace, per-circuit minimum stint)
-- [ ] Model traffic or pit-timing costs so very early stops (Canada, Monaco) are judged realistically
+- [x] Price very early stops with a measured cost, break near-ties toward longer stints, and build Plan B from the real races (no more silent copies of Plan C)
+- [ ] Degradation models for intermediate and wet tyres, so wet races get a Plan B
 - [ ] Dedicated charts for extra Phase 3-6 outputs (model metrics, hazard ratios, model comparison)
 
 ## Acknowledgments
