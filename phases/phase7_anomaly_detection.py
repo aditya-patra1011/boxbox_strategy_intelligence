@@ -9,6 +9,10 @@ Original file is located at
 PHASE 7: ANOMALY DETECTION(DBSCAN)
 
 Uses density-based clustering to automatically detect anomalous laps per circuit, validating and enriching the manual cleaning rule used in Phase 2
+
+PHASE 7: ANOMALY DETECTION(DBSCAN)
+
+Uses density-based clustering to automatically detect anomalous laps per circuit, validating and enriching the manual cleaning rule used in Phase 2
 """
 
 import pandas as pd
@@ -23,14 +27,15 @@ from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings('ignore')
 
-"""SETUP"""
+"""SETUP
+"""
 
 BASE = r'C:\Users\adity\Desktop\BoxBox'
 
 os.makedirs(os.path.join(BASE, 'models'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'data', 'outputs'), exist_ok=True)
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -50,7 +55,8 @@ stream_handler.setFormatter(formatter)
 log.addHandler(file_handler)
 log.addHandler(stream_handler)
 
-"""CONFIGURATION"""
+"""CONFIGURATION
+"""
 
 DBSCAN_EPS = 0.6    #Neighborhood radius (in scaled feature units)
 DBSCAN_MIN_SAMPLES = 5  #Minimum points to form a dense region
@@ -157,11 +163,14 @@ def compare_with_manual_cleaning(summary_df):
 
     return comparison
 
-"""MAIN PIPELINE"""
+"""MAIN PIPELINE
+"""
 
 def main():
     log.info(" BOX-BOX PHASE 7: Anomaly Detection (DBSCAN)")
     log.info("-" * 50)
+
+    os.makedirs(os.path.join(BASE, 'data', 'processed'), exist_ok=True)
 
     df = load_data()
 
@@ -180,16 +189,19 @@ def main():
     flags_only.to_csv(anomaly_flags_path, index=False)
     log.info(f"\n{anomaly_flags_path} with {len(flags_only)} rows")
 
+    #Per-circuit anomaly summary (processed folder, because app.py reads it from there)
     summary_path = os.path.join(
-        BASE, 'data', 'outputs', 'dbscan_anomaly_summary.csv'
+        BASE, 'data', 'processed', 'dbscan_anomaly_summary.csv'
     )
+    summary_df.to_csv(summary_path, index=False)
+    log.info(f" {summary_path} with {len(summary_df)} rows")
 
+    #DBSCAN vs manual cleaning comparison (separate file)
     comparison_path = os.path.join(
-        BASE, 'data', 'outputs', 'dbscan_anomaly_summary.csv'
+        BASE, 'data', 'outputs', 'dbscan_vs_manual_comparison.csv'
     )
-
-    comparison_df.to_csv(summary_path, index=False)
-    log.info(f" {summary_path} with {len(comparison_df)} rows")
+    comparison_df.to_csv(comparison_path, index=False)
+    log.info(f" {comparison_path} with {len(comparison_df)} rows")
 
     models_path = os.path.join(
         BASE, 'models', 'dbscan_anomaly_models.pkl'
@@ -202,13 +214,13 @@ def main():
     log.info("-" * 50)
 
     total_laps = len(results_df)
-    total_anomalies = results_df['IsAnomaly'].sum()
+    total_anomalies = int(results_df['IsAnomaly'].sum())
     log.info(f" Total laps analysed: {total_laps}")
     log.info(f" Total anomalies detected: {total_anomalies} "
-            f"{total_anomalies/total_laps:.2f}")
+            f"({total_anomalies / total_laps:.1%})")
     log.info(f"Top 5 circuits by DBSCAN anomaly rate:")
     top5 = comparison_df.sort_values('AnomalyRate', ascending = False).head(5)
-    log.info(top5[['CircuitName', 'AnomalyRate']].to_string(index=False))
+    log.info("\n" + top5[['CircuitName', 'AnomalyRate']].to_string(index=False))
 
 if __name__ == '__main__':
     main()

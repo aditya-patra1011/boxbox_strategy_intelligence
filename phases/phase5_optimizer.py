@@ -27,7 +27,7 @@ BASE = r'C:\Users\adity\Desktop\BoxBox'
 os.makedirs(os.path.join(BASE, 'data', 'processed'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'data', 'outputs'), exist_ok=True)
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -37,7 +37,7 @@ log.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 file_handler = logging.FileHandler(
-    r'C:\Users\adity\Desktop\BoxBox\data\outputs\phase1_log.txt'
+    r'C:\Users\adity\Desktop\BoxBox\data\outputs\phase5_log.txt'
 )
 file_handler.setFormatter(formatter)
 
@@ -47,14 +47,16 @@ stream_handler.setFormatter(formatter)
 log.addHandler(file_handler)
 log.addHandler(stream_handler)
 
-"""CONFIGURATION"""
+"""CONFIGURATION
+"""
 
 MIN_STINT_LENGTH = 5
 EXTRAPOLATION_BUFFER = 5
 TWO_STOP_STEP = 2
 DEFAULT_PIT_LOSS = 22.0
 
-"""LOADING ALL PHASE 3/4 OUTPUTS"""
+"""LOADING ALL PHASE 3/4 OUTPUTS
+"""
 
 def load_all_data():
     log.info("Loading Phase 3 & 4 outputs...")
@@ -80,26 +82,34 @@ Converts DataFrames into fast dictionary lookups so the simulation loops below d
 """
 
 def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps):
-    log.info("BUILDING LOOKUP STRCUTURES...")
+    log.info("BUILDING LOOKUP STRUCTURES...")
 
-    #degradation_profiles -> {circuit: {compound: {rate, avg_lap_time, max_tyre_life}}}
+    #degradation_profiles -> {circuit: {compound: {rate, avg_lap_time, base_lap_time, max_tyre_life}}}
     deg_lookup = {}
     for _, row in degradation_df.iterrows():
         circuit = row['CircuitName']
         compound = row['Compound']
+
+        #A negative rate would make the tyre "improve" with age, so clamp at 0
+        rate = max(row['DegradationRate'], 0.0)
+
         deg_lookup.setdefault(circuit, {})[compound] = {
-            'degradation_rate': row['DegradationRate'],
+            'degradation_rate': rate,
             'avg_lap_time': row['AvgLapTime'],
+            #AvgLapTime is the average over a typical stint, so remove the
+            #average wear to get the lap time of a fresh tyre (age 0)
+            'base_lap_time': row['AvgLapTime'] - rate * row['AvgTyreLife'],
             'max_tyre_life': row['AvgTyreLife'] * 2 #Roughly safety ceiling
         }
+
     # feature_store -> {circuit: {pit_loss, sc_probability, total_laps}}
     circuit_info = {}
     for _, row in feature_store.iterrows():
         circuit_info[row['CircuitName']] = {
-    'pit_loss': row['AvgPitLoss'] if pd.notna(row['AvgPitLoss']) else DEFAULT_PIT_LOSS,
-    'sc_probability': row['SafetyCarProbability'],
-    'total_laps': int(row['TotalRaceLaps'])
-    }
+            'pit_loss': row['AvgPitLoss'] if pd.notna(row['AvgPitLoss']) else DEFAULT_PIT_LOSS,
+            'sc_probability': row['SafetyCarProbability'],
+            'total_laps': int(row['TotalRaceLaps'])
+        }
 
     # cox_hazard -> {circuit: {covariate: hazard_ratio}}
     hazard_lookup = {}
@@ -117,8 +127,10 @@ def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps):
 Uses the arithmetic series formula to sum oredicted lap times across a stint without looping lap by lap
 """
 
-def stint_time(avg_lap_time, degradation_rate, stint_length):
-    total = stint_length * avg_lap_time
+def stint_time(base_lap_time, degradation_rate, stint_length):
+    '''Lap k of a stint takes base_lap_time + degradation_rate * k,
+    so the stint total is the sum of that over k = 1..stint_length'''
+    total = stint_length * base_lap_time
     total += degradation_rate * (stint_length * (stint_length + 1) / 2)
     return total
 
@@ -160,7 +172,8 @@ def calculate_risk_score(circuit, strategy, deg_profiles, hazard_lookup, sc_prob
     total_risk = sc_risk + hazard_risk + overrun_penalty
     return round(min(total_risk, 100), 1)
 
-"""STRATEGY SIMULATION"""
+"""STRATEGY SIMULATION
+"""
 
 def simulate_strategy(circuit, strategy, deg_profiles, pit_loss):
     total_time = 0
@@ -168,17 +181,18 @@ def simulate_strategy(circuit, strategy, deg_profiles, pit_loss):
 
     for compound, stint_length in strategy:
         profile = deg_profiles.get(compound)
-        if profile is None:
+        if profile is None: 
             return None
         if not is_valid_stint(profile, stint_length):
             return None
         total_time += stint_time(
-            profile['avg_lap_time'], profile['degradation_rate'], stint_length
+            profile['base_lap_time'], profile['degradation_rate'], stint_length
         )
     total_time += num_stops * pit_loss
     return total_time
 
-"""FIND ALL VALID STRATEGIES FOR A CIRCUIT"""
+"""FIND ALL VALID STRATEGIES FOR A CIRCUIT
+"""
 
 def generate_strategies(circuit, deg_lookup, circuit_info):
     if circuit not in circuit_info or circuit not in deg_lookup:
@@ -248,11 +262,20 @@ def find_real_world_strategy(circuit, engineered_laps):
     ].index
 
     sequences = []
+    lengths_by_seq = {}
     for driver in drivers_with_common_stops:
-        driver_laps = circuit_laps[circuit_laps['Driver'] == driver]
-        seq = driver_laps.sort_values('LapNumber').groupby('Stint')['Compound'].first().tolist()
-        if len(seq) == common_stop_count + 1:
-            sequences.append(tuple(seq))
+        driver_laps = circuit_laps[circuit_laps['Driver'] == driver].sort_values('LapNumber')
+        stints = driver_laps.groupby('Stint')
+
+        seq = tuple(stints['Compound'].first().tolist())
+        if len(seq) != common_stop_count + 1:
+            continue
+
+        sequences.append(seq)
+
+        #Real stint lengths: first lap to last lap of each stint
+        spans = (stints['LapNumber'].max() - stints['LapNumber'].min() + 1).tolist()
+        lengths_by_seq.setdefault(seq, []).append(spans)
 
     if not sequences:
         return None
@@ -263,12 +286,19 @@ def find_real_world_strategy(circuit, engineered_laps):
     if most_common_seq.empty:
         return None
 
+    best_seq = most_common_seq.iloc[0]
+
+    #Median stint length at each position, across drivers who ran this sequence
+    median_lengths = np.median(np.array(lengths_by_seq[best_seq]), axis=0)
+
     return {
         'stop_count': common_stop_count,
-        'compound_sequence': list(most_common_seq.iloc[0])
+        'compound_sequence': list(best_seq),
+        'stint_lengths': median_lengths.tolist()
     }
 
-"""BUILD PLAN A/B/C FOR ONE CIRCUIT"""
+"""BUILD PLAN A/B/C FOR ONE CIRCUIT
+"""
 
 def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps):
     one_stop, two_stop, deg_profiles = generate_strategies(circuit, deg_look, circuit_info)
@@ -297,20 +327,15 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps)
 
     if real_world is not None:
         total_laps = circuit_info[circuit]['total_laps']
-        n_stints = real_world['stop_count'] + 1
-        avg_stint_len = total_laps // n_stints
 
-        '''Approximate stint lengths evenly since we only
-        know the compound sequence, not exact real lap splits'''
-        approx_strategy = []
-        remaining = total_laps
-        for i, compound in enumerate(real_world['compound_sequence']):
-            if i == len(real_world['compound_sequence']) - 1:
-                length = remaining
-            else:
-                length = avg_stint_len
-                remaining -= length
-            approx_strategy.append((compound, length))
+        '''Use the real median stint lengths, scaled so they add up
+        to the full race distance (the cleaned data has pit/in/out
+        laps removed, so the raw lengths fall a few laps short)'''
+        raw = np.array(real_world['stint_lengths'], dtype=float)
+        lengths = np.round(raw / raw.sum() * total_laps).astype(int)
+        lengths[-1] = total_laps - lengths[:-1].sum()
+
+        approx_strategy = list(zip(real_world['compound_sequence'], lengths.tolist()))
 
         total_time = simulate_strategy(
             circuit, approx_strategy, deg_profiles, circuit_info[circuit]['pit_loss']
@@ -329,13 +354,13 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps)
         risk = calculate_risk_score(
             circuit, plan['strategy'], deg_profiles, hazard_lookup, sc_probability
         )
+        #RiskLevel is assigned in main(), once all risk scores exist
         return {
             'PlanLabel': label,
             'NumStops': len(plan['strategy']) - 1,
             'strategy': "->".join([f"{c}({l})" for c, l in plan['strategy']]),
             'PredictedTotalTime': round(plan['total_time'], 2),
-            'RiskScore': risk,
-            'RiskLevel': 'Low' if risk<14 else 'Medium' if risk<20 else 'High'
+            'RiskScore': risk
         }
     return{
         'CircuitName': circuit,
@@ -344,7 +369,8 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps)
         'PlanC': format_plan(plan_c, 'C')
     }
 
-"""MAIN PIPELINE"""
+"""MAIN PIPELINE
+"""
 
 def main():
     log.info("BOXBOX - Phase 5: Strategy Optimization Engine")
@@ -376,9 +402,18 @@ def main():
 
         log.info(f" {circuit}: Plan A = {result['PlanA']['strategy']} "
                 f" ({result['PlanA']['PredictedTotalTime']}s, "
-                f"risk={result['PlanA']['RiskScore']}")
+                f"risk={result['PlanA']['RiskScore']})")
 
     plans_df = pd.DataFrame(all_plans)
+
+    '''Risk levels from the real score distribution (bottom third = Low,
+    middle third = Medium, top third = High) instead of fixed cutoffs'''
+    q1, q2 = plans_df['RiskScore'].quantile([0.33, 0.66])
+    plans_df['RiskLevel'] = np.where(
+        plans_df['RiskScore'] <= q1, 'Low',
+        np.where(plans_df['RiskScore'] <= q2, 'Medium', 'High')
+    )
+    log.info(f"\nRisk cutoffs: Low <= {q1:.1f}, Medium <= {q2:.1f}, High above")
 
     #Saving outputs
     plans_path = os.path.join(BASE, 'data', 'processed', 'plan_abc.csv')

@@ -9,6 +9,10 @@ Original file is located at
 PHASE 8: CIRCUIT MAP BUILDER
 
 Draw each circuit outline Phase 1 telemetry, overlays DRS zones, braking zones, sector boundaries, and pit lane markers, and save each as an interactive Plotly JSON file
+
+PHASE 8: CIRCUIT MAP BUILDER
+
+Draw each circuit outline Phase 1 telemetry, overlays DRS zones, braking zones, sector boundaries, and pit lane markers, and save each as an interactive Plotly JSON file
 """
 
 import pandas as pd
@@ -23,7 +27,8 @@ import plotly.graph_objects as go
 
 warnings.filterwarnings('ignore')
 
-"""SETUP"""
+"""SETUP
+"""
 
 BASE = r'C:\Users\adity\Desktop\BoxBox'
 
@@ -31,7 +36,7 @@ os.makedirs(os.path.join(BASE, 'circuit_maps'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'data', 'outputs'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'cache'), exist_ok=True)
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -78,17 +83,113 @@ CALENDAR_2024 = [
 Re-loads Qualifying sessoin telemetry with channels (Speed, DRS, Distance) needed for zone detection - Phase 1 only kept X/Y/Z Status, so we pull the richer telemetry here
 """
 
-def load_circuit_telemetry(round_number, year=2024):
+def drs_mask_from_race(round_number, year, ref_relative_distance, laps_per_driver=3):
+    '''Build a "DRS open" mask for a reference lap from the race session.
+    Samples a few laps per driver, marks where DRS was open along the lap
+    (as a 0-1 fraction of lap distance), and keeps places seen open on 2+ laps'''
+    session = fastf1.get_session(year, round_number, 'R')
+    session.load(laps=True, telemetry=True, weather=False, messages=False)
+
+    laps = session.laps.pick_quicklaps().dropna(subset=['LapTime'])
+    grid = np.linspace(0, 1, 2000)
+    counts = np.zeros_like(grid)
+    used = 0
+
+    for driver in laps['Driver'].unique():
+        driver_laps = laps[laps['Driver'] == driver]
+        if len(driver_laps) == 0:
+            continue
+
+        picks = np.linspace(
+            0, len(driver_laps) - 1, min(laps_per_driver, len(driver_laps))
+        ).astype(int)
+
+        for idx in picks:
+            lap = driver_laps.iloc[idx]
+            try:
+                tel = lap.get_telemetry()
+            except Exception:
+                continue
+            if tel is None or tel.empty or 'DRS' not in tel.columns:
+                continue
+
+            dist = tel['Distance'].values
+            if dist.max() <= 0:
+                continue
+            rel = dist / dist.max()
+            active = tel['DRS'].isin([10, 12, 14]).values.astype(float)
+
+            counts += (np.interp(grid, rel, active) > 0.5)
+            used += 1
+
+    if used == 0:
+        return None
+
+    zone = counts >= 2
+    return np.interp(ref_relative_distance, grid, zone.astype(float)) > 0.5
+
+
+def load_circuit_telemetry(round_number, year=2024, max_candidates=10):
     try:
         session = fastf1.get_session(year, round_number, 'Q')
         session.load(laps=True, telemetry=True, weather = False, messages=False)
 
-        fastest_lap = session.laps.pick_fastest()
-        if fastest_lap is None:
+        #All timed laps, fastest first (ignoring laps deleted for track limits when possible)
+        candidates = session.laps.dropna(subset=['LapTime']).sort_values('LapTime')
+        if 'Deleted' in candidates.columns:
+            not_deleted = candidates[candidates['Deleted'] != True]
+            if not not_deleted.empty:
+                candidates = not_deleted
+
+        if candidates.empty:
             return None, None
 
-        telemetry = fastest_lap.get_telemetry()
-        return telemetry, fastest_lap
+        '''Use the fastest lap that actually has DRS activity. If none of
+        the quickest laps has any, use the plain fastest lap and take the
+        DRS zones from the race session instead'''
+        fallback = None
+        for k in range(min(max_candidates, len(candidates))):
+            lap = candidates.iloc[k]
+            try:
+                telemetry = lap.get_telemetry()
+            except Exception:
+                continue
+
+            if telemetry is None or telemetry.empty:
+                continue
+
+            if fallback is None:
+                fallback = (telemetry, lap)
+
+            if 'DRS' in telemetry.columns and telemetry['DRS'].isin([10, 12, 14]).any():
+                if k > 0:
+                    log.info(f" Round {round_number}: fastest lap had no DRS, "
+                            f"using lap ranked #{k + 1} instead")
+                return telemetry, lap
+
+        if fallback is None:
+            return None, None
+
+        telemetry, lap = fallback
+        log.warning(f" Round {round_number}: no DRS activity in qualifying, "
+                    f"taking DRS zones from the race session")
+
+        try:
+            max_dist = telemetry['Distance'].max()
+            ref_rel = telemetry['Distance'].values / max_dist
+            mask = drs_mask_from_race(round_number, year, ref_rel)
+        except Exception as e:
+            log.warning(f" Round {round_number}: race DRS fallback failed: {e}")
+            mask = None
+
+        if mask is not None and mask.any():
+            telemetry = telemetry.copy()
+            telemetry['DRS'] = np.where(mask, 12, telemetry['DRS'])
+            log.info(f" Round {round_number}: DRS zones taken from the race session")
+        else:
+            log.warning(f" Round {round_number}: no DRS zones found, map will have none")
+
+        return telemetry, lap
     except Exception as e:
         log.error(f" Failed to load telemetry data for round {round_number}: {e}")
         return None, None
@@ -163,7 +264,8 @@ def approximate_sector_boundaries(telemetry, fastest_lap):
     except Exception:
         return total_distance / 3, total_distance * 2/3
 
-"""BUILD THE PLOTLY CIRCUIT MAP"""
+"""BUILD THE PLOTLY CIRCUIT MAP
+"""
 
 import plotly.graph_objects as go
 import numpy as np
@@ -355,7 +457,8 @@ def build_circuit_map(circuit_name, telemetry, s1_dist=None, s2_dist=None):
 
     return fig
 
-"""MAIN PIPELINE"""
+"""MAIN PIPELINE
+"""
 
 def main():
     log.info("BOXBOX - Phase 8: Circuit Map Builder")
@@ -400,3 +503,11 @@ def main():
 
 if __name__ =='__main__':
     main()
+
+race = next(r for r in CALENDAR_2024 if r['name'] == 'Belgium')
+telemetry, lap = load_circuit_telemetry(race['round'])
+telemetry = detect_drs_zones(detect_braking_zones(telemetry))
+s1, s2 = approximate_sector_boundaries(telemetry, lap)
+fig = build_circuit_map('Belgium', telemetry, s1, s2)
+fig.write_json(os.path.join(BASE, 'circuit_maps', 'belgium.json'))
+print("DRS points:", telemetry['IsDRSActive'].sum())

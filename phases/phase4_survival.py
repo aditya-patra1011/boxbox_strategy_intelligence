@@ -19,7 +19,7 @@ import pandas as pd
 import numpy as np
 import os
 import logging
-import warnings
+import warnings 
 import joblib
 
 from sklearn.preprocessing import StandardScaler
@@ -27,7 +27,8 @@ from lifelines import KaplanMeierFitter, CoxPHFitter
 
 warnings.filterwarnings('ignore')
 
-"""SETUP"""
+"""SETUP
+"""
 
 BASE = r'C:\Users\adity\Desktop\BoxBox'
 
@@ -35,7 +36,7 @@ os.makedirs(os.path.join(BASE, 'models'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'data', 'processed'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'data', 'outputs'), exist_ok=True)
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -45,7 +46,7 @@ log.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 file_handler = logging.FileHandler(
-    r'C:\Users\adity\Desktop\BoxBox\data\outputs\phase1_log.txt'
+    r'C:\Users\adity\Desktop\BoxBox\data\outputs\phase4_log.txt'
 )
 file_handler.setFormatter(formatter)
 
@@ -55,12 +56,14 @@ stream_handler.setFormatter(formatter)
 log.addHandler(file_handler)
 log.addHandler(stream_handler)
 
-"""CONFIGURATION"""
+"""CONFIGURATION
+"""
 
-FAILURE_THRESHOLD = 1.03 #a lap 3% slowe than stint's best = "failed"
+FAILURE_THRESHOLD = 1.02 #a lap 2% slower than the stint's best (fuel-corrected) = "failed"
 MIN_STINTS = 8   #minimum stints required to fit survival models
 
-"""LOAD ENIGINEERED DATA From Previous Phases"""
+"""LOAD ENIGINEERED DATA From Previous Phases
+"""
 
 def load_data():
     path = os.path.join(BASE, 'data', 'processed', 'engineered_laps.csv')
@@ -70,13 +73,13 @@ def load_data():
 
 """BUILD STINT-LEVEL SURVIVAL DATASET
 
-Converts lap-level data into one row per stint, with a 'duration' (tire age at a failure or consoring) and 'event' flag
+Converts lap-level data into one row per stint, with a 'duration' (tire age at a failure or consoring) and 'event' flag 
 
 (TRUE = genuinely failed, FALSE = censored by an earlier pit stop)
 """
 
 def build_stint_dataset(df):
-    log.info("BUILDING STINT-LEVEL SIRVIVAL DATASET")
+    log.info("BUILDING STINT-LEVEL SURVIVAL DATASET")
     log.info('-' * 50)
 
     rows = []
@@ -90,11 +93,15 @@ def build_stint_dataset(df):
             #Too short a stint to meaningfully judge the failure
             continue
 
-        stint_best = group['LapTimeSeconds'].min()
-        threshold = stint_best * FAILURE_THRESHOLD
+        '''Use fuel-corrected lap times, so the car getting lighter
+        doesn't hide tyre wear. Only judge laps AFTER the stint's
+        best lap, so slow warm-up laps are not counted as "failures"'''
+        fc = group['FuelCorrectedLapTime']
+        best_age = group.loc[fc.idxmin(), 'TyreLife']
+        threshold = fc.min() * FAILURE_THRESHOLD
 
-        #Finding the first lap where lap time crosses the threshold
-        failed_laps = group[group['LapTimeSeconds'] > threshold]
+        #Finding the first lap after the peak where lap time crosses the threshold
+        failed_laps = group[(group['TyreLife'] > best_age) & (fc > threshold)]
 
         if not failed_laps.empty:
             #Tire genuinely "failed" - take the tire age at that point
@@ -126,9 +133,10 @@ def build_stint_dataset(df):
 
     stint_df = pd.DataFrame(rows)
 
+    n_events = int(stint_df['Event'].sum())
     log.info(f"Stint-level dataset built: {len(stint_df)} stints")
-    log.info(f" Failure events: {stint_df['Event'].sum()}")
-    log.info(f" Censored (pitted before failing):"
+    log.info(f" Failure events: {n_events} ({n_events / len(stint_df):.1%} of stints)")
+    log.info(f" Censored (pitted before failing): "
             f"{(~stint_df['Event']).sum()}")
 
     return stint_df
@@ -273,7 +281,8 @@ def fit_cox_models(stint_df):
 
     return hazard_df, cox_models
 
-"""MAIN PIPELINE"""
+"""MAIN PIPELINE
+"""
 
 def main():
     log.info("BOXBOX - Phase 4: Survival Analysis")
