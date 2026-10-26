@@ -228,3 +228,23 @@ def standings_lines(df, key, label, highlight, metric="points", race_names=None)
     # Plotly replays queued figures. The traces change shape completely, so there's nothing to animate.
     fig.layout.transition = None
     return fig.update_layout(legend=dict(orientation="h", y=1.08, x=0))
+
+
+# RACE CENTRE · CIRCUITS
+def track_outline(xy, color="#E8E8E8", width=4, height=None):
+    """A circuit drawn from our own telemetry outline: no axes, equal scale, nothing else."""
+    if not xy:
+        return empty("No track outline yet. Run: python -m ingest.circuits")
+    x, y = xy
+    fig = go.Figure(go.Scatter(x=x, y=y, mode="lines", line=dict(color=color, width=width),
+                               hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=[x[0]], y=[y[0]], mode="markers", hoverinfo="skip",
+                             marker=dict(color=RED, size=9, line=dict(color="#0E1014", width=2))))
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False, scaleanchor="x", scaleratio=1)
+    style(fig, margin=dict(l=4, r=4, t=4, b=4), showlegend=False)
+    fig.update_layout(plot_bgcolor="rgba(0,0,0,0)")
+    fig.layout.transition = None
+    if height:
+        fig.update_layout(height=height)
+    return fig

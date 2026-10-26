@@ -3,15 +3,19 @@ Read-only access to the Race Centre store that `python -m ingest` fills.
 Pages call these; nothing here talks to an external API.
 """
 
+import json
+import math
 import os
 import sqlite3
 from contextlib import closing
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
 
 BASE = Path(os.environ.get("BOXBOX_BASE", Path(__file__).resolve().parent.parent))
 STORE = Path(os.environ.get("BOXBOX_STORE", BASE / "data" / "race_centre" / "boxbox.sqlite"))
+CONTENT = BASE / "content"          # committed content built by: python -m ingest.circuits
 
 
 def available():
@@ -109,3 +113,41 @@ def contenders(table, left):
     if table.empty:
         return table
     return table[table["points"] + left >= table["points"].max()]
+
+
+# ── circuits (content/, committed to the repo) ──
+
+@lru_cache(maxsize=1)
+def circuits():
+    """Facts per circuit for the season: first GP, races held, racing-line length, laps."""
+    path = CONTENT / "circuits.json"
+    if not path.exists():
+        return pd.DataFrame()
+    return pd.DataFrame(json.loads(path.read_text(encoding="utf-8"))["circuits"])
+
+
+@lru_cache(maxsize=32)
+def outline(circuit_id):
+    """Track outline in OpenF1 coordinates plus the rotation to display it with, or None."""
+    path = CONTENT / "circuits" / f"{circuit_id}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def rotate(x, y, deg, centre):
+    """Turn points about `centre` for display. Same maths as the builder, so car positions
+    from OpenF1 can be turned with the outline they belong to."""
+    t = math.radians(deg)
+    c, s = math.cos(t), math.sin(t)
+    mx, my = centre
+    return ([(a - mx) * c - (b - my) * s for a, b in zip(x, y)],
+            [(a - mx) * s + (b - my) * c for a, b in zip(x, y)])
+
+
+def outline_xy(circuit_id):
+    """Display-ready outline: rotated, closed, and centred on (0, 0)."""
+    o = outline(circuit_id)
+    if not o:
+        return None
+    centre = (sum(o["x"]) / len(o["x"]), sum(o["y"]) / len(o["y"]))
+    x, y = rotate(o["x"] + o["x"][:1], o["y"] + o["y"][:1], o["rotation_deg"], centre)
+    return x, y

@@ -79,3 +79,25 @@ def test_contenders_includes_exact_tie_with_leader():
     table = pd.DataFrame({"driver_id": ["a", "b", "c"], "points": [100, 75, 74]})
     assert race_data.contenders(table, 25)["driver_id"].tolist() == ["a", "b"]
     assert race_data.contenders(table, 0)["driver_id"].tolist() == ["a"]
+
+
+# ── circuit content ──
+
+import json
+
+
+def test_circuit_content_reads_and_rotates(tmp_path, monkeypatch):
+    (tmp_path / "circuits").mkdir()
+    (tmp_path / "circuits.json").write_text(json.dumps({"season": 2026, "circuits": [
+        {"round": 14, "circuit_id": "madring", "first_gp": 2026, "outline": "circuits/madring.json"}]}))
+    (tmp_path / "circuits" / "madring.json").write_text(json.dumps(
+        {"circuit_id": "madring", "rotation_deg": 90, "x": [0, 20, 20, 0], "y": [0, 0, 10, 10]}))
+    monkeypatch.setattr(race_data, "CONTENT", tmp_path)
+    race_data.circuits.cache_clear(), race_data.outline.cache_clear()
+
+    assert race_data.circuits()["circuit_id"].tolist() == ["madring"]
+    x, y = race_data.outline_xy("madring")
+    assert len(x) == 5 and (x[0], y[0]) == pytest.approx((x[-1], y[-1]))   # closed loop
+    assert max(y) - min(y) == pytest.approx(20) and max(x) - min(x) == pytest.approx(10)   # turned 90°
+    assert race_data.outline_xy("nowhere") is None
+    race_data.circuits.cache_clear(), race_data.outline.cache_clear()
