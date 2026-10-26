@@ -450,3 +450,55 @@ body {
   color: #e8002d !important;
   font-weight: 700;
 }
+
+/* Section switcher: Race Centre | Strategy Lab */
+.bb-topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 26px;
+}
+.bb-section-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #121317;
+  border: 1px solid var(--line);
+}
+.bb-section-tab {
+  padding: 8px 18px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+  transition: all 0.18s ease;
+}
+.bb-section-tab:hover {
+  color: #fff;
+  background: #1d1e24;
+}
+.bb-section-tab-active,
+.bb-section-tab-active:hover {
+  color: #fff;
+  background: var(--red);
+}
+.bb-soon-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #c9cad1;
+  line-height: 1.9;
+}
+@media (max-width: 991px) {
+  .bb-topbar {
+    justify-content: stretch;
+  }
+  .bb-section-tabs {
+    width: 100%;
+  }
+  .bb-section-tab {
+    flex: 1;
+    text-align: center;
+  }
+}

@@ -49,3 +49,11 @@ def pills(text):
 
 def message(text, kind="info"):
     return html.Div(text, className=f"bb-msg bb-msg-{kind}")
+
+def coming_soon(title, subtitle, pr, features):
+    """Placeholder body for a Race Centre page that a later PR fills in."""
+    return html.Div([
+        page_title(title, subtitle),
+        card("What this page will show", f"Arrives in PR {pr} of the Race Centre plan.",
+             html.Ul([html.Li(f) for f in features], className="bb-soon-list")),
+    ], className="bb-fade")

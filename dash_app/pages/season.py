@@ -6,7 +6,7 @@ import data
 import figures as F
 from ui import card, graph, kpi, message, page_title
 
-dash.register_page(__name__, path="/season", name="Season Overview", title="Season · BoxBox", order=3, icon="📅")
+dash.register_page(__name__, path="/season", name="Season Overview", title="Season · BoxBox", order=3, icon="📅", section="lab")
 
 layout = html.Div([
     page_title("Season Overview · 2024", "All circuits at a glance. Click any bar or dot to jump the dashboard to that circuit."),

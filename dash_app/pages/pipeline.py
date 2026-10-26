@@ -5,7 +5,7 @@ from dash import Input, Output, State, callback, dash_table, dcc, html
 import data
 from ui import card, message, page_title
 
-dash.register_page(__name__, path="/pipeline", name="Pipeline", title="Pipeline · BoxBox", order=4, icon="🧪")
+dash.register_page(__name__, path="/pipeline", name="Pipeline", title="Pipeline · BoxBox", order=4, icon="🧪", section="lab")
 
 PHASES = [
     ("1", "Data Collection", "FastF1 / Jolpica laps, stints, weather and results for every 2024 race.", []),
