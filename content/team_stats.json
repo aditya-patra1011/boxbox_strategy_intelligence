@@ -1,0 +1,726 @@
+{
+ "titles_through_season": 2025,
+ "wins_include_current_season": true,
+ "built_utc": "2026-10-26T15:54:23+00:00",
+ "source": "Jolpica F1 API: season champions and race winners, attributed through content/teams.json lineage.",
+ "teams": {
+  "mercedes": {
+   "constructors_titles": [
+    {
+     "season": 1971,
+     "as": "Tyrrell"
+    },
+    {
+     "season": 2009,
+     "as": "Brawn GP"
+    },
+    {
+     "season": 2014,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2015,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2016,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2017,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2018,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2019,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2020,
+     "as": "Mercedes"
+    },
+    {
+     "season": 2021,
+     "as": "Mercedes"
+    }
+   ],
+   "drivers_titles": [
+    {
+     "season": 1971,
+     "driver": "Jackie Stewart",
+     "as": "Tyrrell"
+    },
+    {
+     "season": 1973,
+     "driver": "Jackie Stewart",
+     "as": "Tyrrell"
+    },
+    {
+     "season": 2009,
+     "driver": "Jenson Button",
+     "as": "Brawn GP"
+    },
+    {
+     "season": 2014,
+     "driver": "Lewis Hamilton",
+     "as": "Mercedes"
+    },
+    {
+     "season": 2015,
+     "driver": "Lewis Hamilton",
+     "as": "Mercedes"
+    },
+    {
+     "season": 2016,
+     "driver": "Nico Rosberg",
+     "as": "Mercedes"
+    },
+    {
+     "season": 2017,
+     "driver": "Lewis Hamilton",
+     "as": "Mercedes"
+    },
+    {
+     "season": 2018,
+     "driver": "Lewis Hamilton",
+     "as": "Mercedes"
+    },
+    {
+     "season": 2019,
+     "driver": "Lewis Hamilton",
+     "as": "Mercedes"
+    },
+    {
+     "season": 2020,
+     "driver": "Lewis Hamilton",
+     "as": "Mercedes"
+    }
+   ],
+   "wins": 166,
+   "wins_by_name": {
+    "Tyrrell": 23,
+    "Honda": 1,
+    "Brawn GP": 8,
+    "Mercedes": 134
+   },
+   "first_win": {
+    "season": 1971,
+    "race": "Spanish Grand Prix",
+    "driver": "Jackie Stewart",
+    "as": "Tyrrell"
+   },
+   "latest_win": {
+    "season": 2026,
+    "race": "United States Grand Prix",
+    "driver": "Andrea Kimi Antonelli",
+    "as": "Mercedes"
+   }
+  },
+  "ferrari": {
+   "constructors_titles": [
+    {
+     "season": 1961,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1964,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1975,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1976,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1977,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1979,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1982,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1983,
+     "as": "Ferrari"
+    },
+    {
+     "season": 1999,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2000,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2001,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2002,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2003,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2004,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2007,
+     "as": "Ferrari"
+    },
+    {
+     "season": 2008,
+     "as": "Ferrari"
+    }
+   ],
+   "drivers_titles": [
+    {
+     "season": 1952,
+     "driver": "Alberto Ascari",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1953,
+     "driver": "Alberto Ascari",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1956,
+     "driver": "Juan Fangio",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1958,
+     "driver": "Mike Hawthorn",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1961,
+     "driver": "Phil Hill",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1964,
+     "driver": "John Surtees",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1975,
+     "driver": "Niki Lauda",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1977,
+     "driver": "Niki Lauda",
+     "as": "Ferrari"
+    },
+    {
+     "season": 1979,
+     "driver": "Jody Scheckter",
+     "as": "Ferrari"
+    },
+    {
+     "season": 2000,
+     "driver": "Michael Schumacher",
+     "as": "Ferrari"
+    },
+    {
+     "season": 2001,
+     "driver": "Michael Schumacher",
+     "as": "Ferrari"
+    },
+    {
+     "season": 2002,
+     "driver": "Michael Schumacher",
+     "as": "Ferrari"
+    },
+    {
+     "season": 2003,
+     "driver": "Michael Schumacher",
+     "as": "Ferrari"
+    },
+    {
+     "season": 2004,
+     "driver": "Michael Schumacher",
+     "as": "Ferrari"
+    },
+    {
+     "season": 2007,
+     "driver": "Kimi Räikkönen",
+     "as": "Ferrari"
+    }
+   ],
+   "wins": 250,
+   "wins_by_name": {
+    "Ferrari": 250
+   },
+   "first_win": {
+    "season": 1951,
+    "race": "British Grand Prix",
+    "driver": "José Froilán González",
+    "as": "Ferrari"
+   },
+   "latest_win": {
+    "season": 2026,
+    "race": "British Grand Prix",
+    "driver": "Charles Leclerc",
+    "as": "Ferrari"
+   }
+  },
+  "mclaren": {
+   "constructors_titles": [
+    {
+     "season": 1974,
+     "as": "McLaren"
+    },
+    {
+     "season": 1984,
+     "as": "McLaren"
+    },
+    {
+     "season": 1985,
+     "as": "McLaren"
+    },
+    {
+     "season": 1988,
+     "as": "McLaren"
+    },
+    {
+     "season": 1989,
+     "as": "McLaren"
+    },
+    {
+     "season": 1990,
+     "as": "McLaren"
+    },
+    {
+     "season": 1991,
+     "as": "McLaren"
+    },
+    {
+     "season": 1998,
+     "as": "McLaren"
+    },
+    {
+     "season": 2024,
+     "as": "McLaren"
+    },
+    {
+     "season": 2025,
+     "as": "McLaren"
+    }
+   ],
+   "drivers_titles": [
+    {
+     "season": 1974,
+     "driver": "Emerson Fittipaldi",
+     "as": "McLaren"
+    },
+    {
+     "season": 1976,
+     "driver": "James Hunt",
+     "as": "McLaren"
+    },
+    {
+     "season": 1984,
+     "driver": "Niki Lauda",
+     "as": "McLaren"
+    },
+    {
+     "season": 1985,
+     "driver": "Alain Prost",
+     "as": "McLaren"
+    },
+    {
+     "season": 1986,
+     "driver": "Alain Prost",
+     "as": "McLaren"
+    },
+    {
+     "season": 1988,
+     "driver": "Ayrton Senna",
+     "as": "McLaren"
+    },
+    {
+     "season": 1989,
+     "driver": "Alain Prost",
+     "as": "McLaren"
+    },
+    {
+     "season": 1990,
+     "driver": "Ayrton Senna",
+     "as": "McLaren"
+    },
+    {
+     "season": 1991,
+     "driver": "Ayrton Senna",
+     "as": "McLaren"
+    },
+    {
+     "season": 1998,
+     "driver": "Mika Häkkinen",
+     "as": "McLaren"
+    },
+    {
+     "season": 1999,
+     "driver": "Mika Häkkinen",
+     "as": "McLaren"
+    },
+    {
+     "season": 2008,
+     "driver": "Lewis Hamilton",
+     "as": "McLaren"
+    },
+    {
+     "season": 2025,
+     "driver": "Lando Norris",
+     "as": "McLaren"
+    }
+   ],
+   "wins": 205,
+   "wins_by_name": {
+    "McLaren": 205
+   },
+   "first_win": {
+    "season": 1968,
+    "race": "Belgian Grand Prix",
+    "driver": "Bruce McLaren",
+    "as": "McLaren"
+   },
+   "latest_win": {
+    "season": 2026,
+    "race": "Dutch Grand Prix",
+    "driver": "Lando Norris",
+    "as": "McLaren"
+   }
+  },
+  "red_bull": {
+   "constructors_titles": [
+    {
+     "season": 2010,
+     "as": "Red Bull"
+    },
+    {
+     "season": 2011,
+     "as": "Red Bull"
+    },
+    {
+     "season": 2012,
+     "as": "Red Bull"
+    },
+    {
+     "season": 2013,
+     "as": "Red Bull"
+    },
+    {
+     "season": 2022,
+     "as": "Red Bull"
+    },
+    {
+     "season": 2023,
+     "as": "Red Bull"
+    }
+   ],
+   "drivers_titles": [
+    {
+     "season": 2010,
+     "driver": "Sebastian Vettel",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2011,
+     "driver": "Sebastian Vettel",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2012,
+     "driver": "Sebastian Vettel",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2013,
+     "driver": "Sebastian Vettel",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2021,
+     "driver": "Max Verstappen",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2022,
+     "driver": "Max Verstappen",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2023,
+     "driver": "Max Verstappen",
+     "as": "Red Bull"
+    },
+    {
+     "season": 2024,
+     "driver": "Max Verstappen",
+     "as": "Red Bull"
+    }
+   ],
+   "wins": 133,
+   "wins_by_name": {
+    "Stewart": 1,
+    "Red Bull": 132
+   },
+   "first_win": {
+    "season": 1999,
+    "race": "European Grand Prix",
+    "driver": "Johnny Herbert",
+    "as": "Stewart"
+   },
+   "latest_win": {
+    "season": 2026,
+    "race": "Singapore Grand Prix",
+    "driver": "Max Verstappen",
+    "as": "Red Bull"
+   }
+  },
+  "rb": {
+   "constructors_titles": [],
+   "drivers_titles": [],
+   "wins": 2,
+   "wins_by_name": {
+    "Toro Rosso": 1,
+    "AlphaTauri": 1
+   },
+   "first_win": {
+    "season": 2008,
+    "race": "Italian Grand Prix",
+    "driver": "Sebastian Vettel",
+    "as": "Toro Rosso"
+   },
+   "latest_win": {
+    "season": 2020,
+    "race": "Italian Grand Prix",
+    "driver": "Pierre Gasly",
+    "as": "AlphaTauri"
+   }
+  },
+  "alpine": {
+   "constructors_titles": [
+    {
+     "season": 1995,
+     "as": "Benetton"
+    },
+    {
+     "season": 2005,
+     "as": "Renault"
+    },
+    {
+     "season": 2006,
+     "as": "Renault"
+    }
+   ],
+   "drivers_titles": [
+    {
+     "season": 1994,
+     "driver": "Michael Schumacher",
+     "as": "Benetton"
+    },
+    {
+     "season": 1995,
+     "driver": "Michael Schumacher",
+     "as": "Benetton"
+    },
+    {
+     "season": 2005,
+     "driver": "Fernando Alonso",
+     "as": "Renault"
+    },
+    {
+     "season": 2006,
+     "driver": "Fernando Alonso",
+     "as": "Renault"
+    }
+   ],
+   "wins": 50,
+   "wins_by_name": {
+    "Benetton": 27,
+    "Renault": 20,
+    "Lotus F1": 2,
+    "Alpine": 1
+   },
+   "first_win": {
+    "season": 1986,
+    "race": "Mexican Grand Prix",
+    "driver": "Gerhard Berger",
+    "as": "Benetton"
+   },
+   "latest_win": {
+    "season": 2021,
+    "race": "Hungarian Grand Prix",
+    "driver": "Esteban Ocon",
+    "as": "Alpine"
+   }
+  },
+  "haas": {
+   "constructors_titles": [],
+   "drivers_titles": [],
+   "wins": 0,
+   "wins_by_name": {},
+   "first_win": null,
+   "latest_win": null
+  },
+  "audi": {
+   "constructors_titles": [],
+   "drivers_titles": [],
+   "wins": 1,
+   "wins_by_name": {
+    "BMW Sauber": 1
+   },
+   "first_win": {
+    "season": 2008,
+    "race": "Canadian Grand Prix",
+    "driver": "Robert Kubica",
+    "as": "BMW Sauber"
+   },
+   "latest_win": {
+    "season": 2008,
+    "race": "Canadian Grand Prix",
+    "driver": "Robert Kubica",
+    "as": "BMW Sauber"
+   }
+  },
+  "williams": {
+   "constructors_titles": [
+    {
+     "season": 1980,
+     "as": "Williams"
+    },
+    {
+     "season": 1981,
+     "as": "Williams"
+    },
+    {
+     "season": 1986,
+     "as": "Williams"
+    },
+    {
+     "season": 1987,
+     "as": "Williams"
+    },
+    {
+     "season": 1992,
+     "as": "Williams"
+    },
+    {
+     "season": 1993,
+     "as": "Williams"
+    },
+    {
+     "season": 1994,
+     "as": "Williams"
+    },
+    {
+     "season": 1996,
+     "as": "Williams"
+    },
+    {
+     "season": 1997,
+     "as": "Williams"
+    }
+   ],
+   "drivers_titles": [
+    {
+     "season": 1980,
+     "driver": "Alan Jones",
+     "as": "Williams"
+    },
+    {
+     "season": 1982,
+     "driver": "Keke Rosberg",
+     "as": "Williams"
+    },
+    {
+     "season": 1987,
+     "driver": "Nelson Piquet",
+     "as": "Williams"
+    },
+    {
+     "season": 1992,
+     "driver": "Nigel Mansell",
+     "as": "Williams"
+    },
+    {
+     "season": 1993,
+     "driver": "Alain Prost",
+     "as": "Williams"
+    },
+    {
+     "season": 1996,
+     "driver": "Damon Hill",
+     "as": "Williams"
+    },
+    {
+     "season": 1997,
+     "driver": "Jacques Villeneuve",
+     "as": "Williams"
+    }
+   ],
+   "wins": 114,
+   "wins_by_name": {
+    "Williams": 114
+   },
+   "first_win": {
+    "season": 1979,
+    "race": "British Grand Prix",
+    "driver": "Clay Regazzoni",
+    "as": "Williams"
+   },
+   "latest_win": {
+    "season": 2012,
+    "race": "Spanish Grand Prix",
+    "driver": "Pastor Maldonado",
+    "as": "Williams"
+   }
+  },
+  "aston_martin": {
+   "constructors_titles": [],
+   "drivers_titles": [],
+   "wins": 5,
+   "wins_by_name": {
+    "Jordan": 4,
+    "Racing Point": 1
+   },
+   "first_win": {
+    "season": 1998,
+    "race": "Belgian Grand Prix",
+    "driver": "Damon Hill",
+    "as": "Jordan"
+   },
+   "latest_win": {
+    "season": 2020,
+    "race": "Sakhir Grand Prix",
+    "driver": "Sergio Pérez",
+    "as": "Racing Point"
+   }
+  },
+  "cadillac": {
+   "constructors_titles": [],
+   "drivers_titles": [],
+   "wins": 0,
+   "wins_by_name": {},
+   "first_win": null,
+   "latest_win": null
+  }
+ }
+}

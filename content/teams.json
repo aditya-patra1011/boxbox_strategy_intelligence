@@ -1,0 +1,230 @@
+{
+ "_about": "Curated team content for the Race Centre Teams page. Lineage follows the same factory and entry, so titles and wins of predecessor teams count (with the years each name raced). Title counts and wins are not typed here: python -m ingest.teams computes them from Jolpica results into team_stats.json. Colours are plain approximations; no logos or official assets.",
+ "teams": [
+  {
+   "id": "mercedes",
+   "name": "Mercedes",
+   "base": "Brackley, United Kingdom",
+   "colour": "#27F4D2",
+   "lineage": [
+    {"name": "Tyrrell", "constructor_ids": ["tyrrell"], "from": 1970, "to": 1998},
+    {"name": "BAR", "constructor_ids": ["bar"], "from": 1999, "to": 2005},
+    {"name": "Honda", "constructor_ids": ["honda"], "from": 2006, "to": 2008},
+    {"name": "Brawn GP", "constructor_ids": ["brawn"], "from": 2009, "to": 2009},
+    {"name": "Mercedes", "constructor_ids": ["mercedes"], "from": 2010, "to": null}
+   ],
+   "lineage_note": "The 1954-55 Mercedes-Benz works team was a separate operation from Stuttgart and is not counted here.",
+   "timeline": [
+    {"year": 1970, "title": "Tyrrell builds its own car", "text": "Ken Tyrrell's team, champions with a Matra chassis in 1969, debuts its first in-house car late in the season."},
+    {"year": 1971, "title": "Double champions", "text": "Jackie Stewart wins the Drivers' title and Tyrrell takes the Constructors' Championship."},
+    {"year": 1999, "title": "British American Racing", "text": "BAR buys Tyrrell and races from the Brackley factory under its own name."},
+    {"year": 2006, "title": "Honda takes over", "text": "Honda runs the team as its works entry; Jenson Button wins the rain-hit Hungarian Grand Prix."},
+    {"year": 2009, "title": "Brawn GP's one perfect season", "text": "Rescued after Honda's exit, Brawn GP wins both championships with Jenson Button in its only year."},
+    {"year": 2010, "title": "Mercedes arrives", "text": "Mercedes buys Brawn GP, and Michael Schumacher comes out of retirement to drive for it."},
+    {"year": 2014, "title": "The hybrid era begins", "text": "The new turbo-hybrid rules start a run of eight straight Constructors' titles, from 2014 to 2021."},
+    {"year": 2020, "title": "Seven titles", "text": "Lewis Hamilton wins his seventh Drivers' title, equalling Michael Schumacher's record."}
+   ]
+  },
+  {
+   "id": "ferrari",
+   "name": "Ferrari",
+   "base": "Maranello, Italy",
+   "colour": "#E8002D",
+   "lineage": [
+    {"name": "Ferrari", "constructor_ids": ["ferrari"], "from": 1950, "to": null}
+   ],
+   "timeline": [
+    {"year": 1950, "title": "Present from the start", "text": "Ferrari enters the first season of the World Championship and is the only team to have raced in every season since."},
+    {"year": 1951, "title": "First win", "text": "José Froilán González beats the Alfa Romeos at the British Grand Prix at Silverstone."},
+    {"year": 1952, "title": "Ascari's double", "text": "Alberto Ascari wins back-to-back Drivers' titles in 1952 and 1953."},
+    {"year": 1961, "title": "America's first champion", "text": "Phil Hill becomes the first American World Champion, driving for Ferrari."},
+    {"year": 1975, "title": "Lauda's first title", "text": "Niki Lauda wins the Drivers' Championship and Ferrari the Constructors'."},
+    {"year": 1979, "title": "Scheckter's crown", "text": "Jody Scheckter wins the title, starting a 21-year wait for Ferrari's next Drivers' champion."},
+    {"year": 2000, "title": "The Schumacher era", "text": "Michael Schumacher wins the first of five consecutive Drivers' titles with Ferrari, from 2000 to 2004."},
+    {"year": 2007, "title": "Räikkönen by a point", "text": "Kimi Räikkönen wins the championship by a single point at the final race in Brazil."}
+   ]
+  },
+  {
+   "id": "mclaren",
+   "name": "McLaren",
+   "base": "Woking, United Kingdom",
+   "colour": "#FF8000",
+   "lineage": [
+    {"name": "McLaren", "constructor_ids": ["mclaren", "mclaren-ford", "mclaren-seren", "mclaren-brm", "mclaren-alfa_romeo"], "from": 1966, "to": null}
+   ],
+   "lineage_note": "In the early years results are filed under the car-engine name (McLaren-Ford, McLaren-BRM and others); all are the same team.",
+   "timeline": [
+    {"year": 1966, "title": "Bruce McLaren's team", "text": "Founder Bruce McLaren gives the team its World Championship debut at the Monaco Grand Prix."},
+    {"year": 1968, "title": "First win", "text": "Bruce McLaren wins the Belgian Grand Prix at Spa in a car carrying his own name."},
+    {"year": 1974, "title": "First titles", "text": "Emerson Fittipaldi wins the Drivers' Championship and McLaren its first Constructors' title."},
+    {"year": 1988, "title": "15 wins from 16", "text": "Ayrton Senna and Alain Prost win all but one race of the season."},
+    {"year": 1998, "title": "Häkkinen's double", "text": "Mika Häkkinen wins the first of back-to-back titles in 1998 and 1999."},
+    {"year": 2008, "title": "Hamilton by a point", "text": "Lewis Hamilton wins his first title by one point on the final lap in Brazil."},
+    {"year": 2024, "title": "Back on top", "text": "McLaren wins the Constructors' Championship for the first time since 1998."},
+    {"year": 2025, "title": "Norris is champion", "text": "Lando Norris wins the Drivers' title at the final race in Abu Dhabi."}
+   ]
+  },
+  {
+   "id": "red_bull",
+   "name": "Red Bull",
+   "base": "Milton Keynes, United Kingdom",
+   "colour": "#3671C6",
+   "lineage": [
+    {"name": "Stewart", "constructor_ids": ["stewart"], "from": 1997, "to": 1999},
+    {"name": "Jaguar", "constructor_ids": ["jaguar"], "from": 2000, "to": 2004},
+    {"name": "Red Bull", "constructor_ids": ["red_bull"], "from": 2005, "to": null}
+   ],
+   "timeline": [
+    {"year": 1997, "title": "Stewart Grand Prix", "text": "Jackie Stewart and his son Paul start the team that later becomes Red Bull Racing."},
+    {"year": 1999, "title": "Stewart's only win", "text": "Johnny Herbert wins a chaotic European Grand Prix at the Nürburgring."},
+    {"year": 2000, "title": "Jaguar Racing", "text": "Ford rebrands the team as Jaguar for five seasons."},
+    {"year": 2005, "title": "Red Bull buys in", "text": "The energy drink company buys Jaguar's team and races as Red Bull Racing."},
+    {"year": 2009, "title": "First win", "text": "Sebastian Vettel wins a wet Chinese Grand Prix for the team's first victory."},
+    {"year": 2010, "title": "Four in a row", "text": "Vettel and Red Bull win both championships every year from 2010 to 2013."},
+    {"year": 2021, "title": "Verstappen's first title", "text": "Max Verstappen wins the championship at the final race in Abu Dhabi."},
+    {"year": 2023, "title": "21 wins from 22", "text": "Red Bull wins every Grand Prix but one, a record for a single season."}
+   ]
+  },
+  {
+   "id": "rb",
+   "name": "Racing Bulls",
+   "base": "Faenza, Italy",
+   "colour": "#6692FF",
+   "lineage": [
+    {"name": "Minardi", "constructor_ids": ["minardi"], "from": 1985, "to": 2005},
+    {"name": "Toro Rosso", "constructor_ids": ["toro_rosso"], "from": 2006, "to": 2019},
+    {"name": "AlphaTauri", "constructor_ids": ["alphatauri"], "from": 2020, "to": 2023},
+    {"name": "RB", "constructor_ids": ["rb"], "from": 2024, "to": null}
+   ],
+   "timeline": [
+    {"year": 1985, "title": "Minardi debuts", "text": "Giancarlo Minardi's small Faenza team starts a 21-season run as the grid's favourite underdog."},
+    {"year": 2006, "title": "Scuderia Toro Rosso", "text": "Red Bull buys Minardi and turns it into its second team, for young drivers."},
+    {"year": 2008, "title": "Vettel's Monza miracle", "text": "Sebastian Vettel wins a wet Italian Grand Prix from pole, the team's first win."},
+    {"year": 2015, "title": "A 17-year-old debut", "text": "Max Verstappen makes his Formula 1 debut with Toro Rosso."},
+    {"year": 2020, "title": "AlphaTauri wins at Monza", "text": "Renamed AlphaTauri, the team wins the Italian Grand Prix again, with Pierre Gasly."},
+    {"year": 2024, "title": "RB", "text": "The team is renamed again as Red Bull's second outfit enters a new era."}
+   ]
+  },
+  {
+   "id": "alpine",
+   "name": "Alpine",
+   "base": "Enstone, United Kingdom",
+   "colour": "#FF87BC",
+   "lineage": [
+    {"name": "Toleman", "constructor_ids": ["toleman"], "from": 1981, "to": 1985},
+    {"name": "Benetton", "constructor_ids": ["benetton"], "from": 1986, "to": 2001},
+    {"name": "Renault", "constructor_ids": ["renault"], "from": 2002, "to": 2011},
+    {"name": "Lotus F1", "constructor_ids": ["lotus_f1"], "from": 2012, "to": 2015},
+    {"name": "Renault", "constructor_ids": ["renault"], "from": 2016, "to": 2020},
+    {"name": "Alpine", "constructor_ids": ["alpine"], "from": 2021, "to": null}
+   ],
+   "lineage_note": "Renault's own 1977-85 works team was a separate operation and is not counted here.",
+   "timeline": [
+    {"year": 1981, "title": "Toleman arrives", "text": "The Witney-based Toleman team enters Formula 1 and, after months of failing to qualify, starts its first race at Monza."},
+    {"year": 1984, "title": "Senna's rookie podium", "text": "In his rookie season, Ayrton Senna finishes second at a rain-soaked Monaco."},
+    {"year": 1986, "title": "Benetton's first win", "text": "Renamed Benetton, the team wins the Mexican Grand Prix with Gerhard Berger."},
+    {"year": 1994, "title": "Schumacher's first titles", "text": "Michael Schumacher wins the Drivers' Championship in 1994 and 1995, and Benetton the 1995 Constructors'."},
+    {"year": 2002, "title": "Renault takes over", "text": "Renault, owner since 2000, renames the team and races it under its own name from Enstone."},
+    {"year": 2005, "title": "Alonso ends the Ferrari run", "text": "Fernando Alonso and Renault win both championships in 2005 and 2006."},
+    {"year": 2012, "title": "Lotus F1", "text": "Racing as Lotus, the team wins the Abu Dhabi Grand Prix with Kimi Räikkönen."},
+    {"year": 2021, "title": "Alpine's first win", "text": "Esteban Ocon wins a chaotic Hungarian Grand Prix in the team's first year as Alpine."}
+   ]
+  },
+  {
+   "id": "haas",
+   "name": "Haas",
+   "base": "Kannapolis, United States",
+   "colour": "#B6BABD",
+   "lineage": [
+    {"name": "Haas", "constructor_ids": ["haas"], "from": 2016, "to": null}
+   ],
+   "timeline": [
+    {"year": 2016, "title": "Points on debut", "text": "Gene Haas's team arrives, and Romain Grosjean finishes sixth in its very first race in Australia."},
+    {"year": 2018, "title": "Best season", "text": "Haas finishes fifth in the Constructors' Championship, its best result."},
+    {"year": 2022, "title": "First pole", "text": "Kevin Magnussen takes a surprise pole position in changing conditions in Brazil."},
+    {"year": 2024, "title": "New leadership", "text": "Ayao Komatsu replaces Guenther Steiner as team principal."}
+   ]
+  },
+  {
+   "id": "audi",
+   "name": "Audi",
+   "base": "Hinwil, Switzerland",
+   "colour": "#52E252",
+   "lineage": [
+    {"name": "Sauber", "constructor_ids": ["sauber"], "from": 1993, "to": 2005},
+    {"name": "BMW Sauber", "constructor_ids": ["bmw_sauber"], "from": 2006, "to": 2009},
+    {"name": "Sauber", "constructor_ids": ["sauber"], "from": 2010, "to": 2018},
+    {"name": "Alfa Romeo", "constructor_ids": ["alfa"], "from": 2019, "to": 2023},
+    {"name": "Sauber", "constructor_ids": ["sauber"], "from": 2024, "to": 2025},
+    {"name": "Audi", "constructor_ids": ["audi"], "from": 2026, "to": null}
+   ],
+   "lineage_note": "Alfa Romeo's own works teams of the 1950s and 1979-85 were separate operations and are not counted here.",
+   "timeline": [
+    {"year": 1993, "title": "Sauber enters Formula 1", "text": "Peter Sauber's team scores points on its debut, with JJ Lehto fifth in South Africa."},
+    {"year": 2006, "title": "BMW Sauber", "text": "BMW buys the team and runs it as its works entry."},
+    {"year": 2008, "title": "Kubica's win", "text": "Robert Kubica wins the Canadian Grand Prix, leading a one-two with Nick Heidfeld."},
+    {"year": 2010, "title": "Back to Sauber", "text": "BMW leaves and Peter Sauber buys back the team he founded."},
+    {"year": 2019, "title": "Alfa Romeo name", "text": "The team races as Alfa Romeo for five seasons."},
+    {"year": 2026, "title": "Audi's works team", "text": "Audi takes full ownership and makes its Formula 1 debut with its own power unit."}
+   ]
+  },
+  {
+   "id": "williams",
+   "name": "Williams",
+   "base": "Grove, United Kingdom",
+   "colour": "#64C4FF",
+   "lineage": [
+    {"name": "Williams", "constructor_ids": ["williams"], "from": 1978, "to": null}
+   ],
+   "lineage_note": "Frank Williams Racing Cars (1969-76) was an earlier, separate team that became Wolf; Williams Grand Prix Engineering first raced its own car in 1978.",
+   "timeline": [
+    {"year": 1977, "title": "Williams Grand Prix Engineering", "text": "Frank Williams and Patrick Head found the team, running a customer March car in its first season."},
+    {"year": 1979, "title": "First win", "text": "Clay Regazzoni wins the British Grand Prix at Silverstone."},
+    {"year": 1980, "title": "First titles", "text": "Alan Jones wins the Drivers' Championship and Williams its first Constructors' title."},
+    {"year": 1992, "title": "Mansell's season", "text": "Nigel Mansell dominates in the active-suspension FW14B to win the title."},
+    {"year": 1997, "title": "Villeneuve is champion", "text": "Jacques Villeneuve wins the Drivers' title after a final-race showdown at Jerez."},
+    {"year": 2012, "title": "Maldonado in Spain", "text": "Pastor Maldonado wins the Spanish Grand Prix from pole."},
+    {"year": 2020, "title": "End of the family era", "text": "The Williams family sells the team to Dorilton Capital."}
+   ]
+  },
+  {
+   "id": "aston_martin",
+   "name": "Aston Martin",
+   "base": "Silverstone, United Kingdom",
+   "colour": "#229971",
+   "lineage": [
+    {"name": "Jordan", "constructor_ids": ["jordan"], "from": 1991, "to": 2005},
+    {"name": "Midland", "constructor_ids": ["mf1"], "from": 2006, "to": 2006},
+    {"name": "Spyker MF1", "constructor_ids": ["spyker_mf1"], "from": 2006, "to": 2006},
+    {"name": "Spyker", "constructor_ids": ["spyker"], "from": 2007, "to": 2007},
+    {"name": "Force India", "constructor_ids": ["force_india"], "from": 2008, "to": 2018},
+    {"name": "Racing Point", "constructor_ids": ["racing_point"], "from": 2019, "to": 2020},
+    {"name": "Aston Martin", "constructor_ids": ["aston_martin"], "from": 2021, "to": null}
+   ],
+   "lineage_note": "The 1959-60 Aston Martin works team was a separate operation and is not counted here.",
+   "timeline": [
+    {"year": 1991, "title": "Jordan Grand Prix", "text": "Eddie Jordan's team debuts, and Michael Schumacher makes his Formula 1 debut in its car at Spa."},
+    {"year": 1998, "title": "One-two at Spa", "text": "Damon Hill leads Ralf Schumacher home in a wet Belgian Grand Prix for Jordan's first win."},
+    {"year": 1999, "title": "Best season", "text": "Heinz-Harald Frentzen wins twice and Jordan finishes third in the Constructors' Championship."},
+    {"year": 2008, "title": "Force India", "text": "After Midland and Spyker, the team becomes Force India."},
+    {"year": 2018, "title": "Rescued", "text": "A consortium led by Lawrence Stroll saves the team and renames it Racing Point."},
+    {"year": 2020, "title": "Pérez wins in Sakhir", "text": "Sergio Pérez recovers from last place on the first lap to win the Sakhir Grand Prix."},
+    {"year": 2021, "title": "Aston Martin", "text": "The team takes the Aston Martin name."},
+    {"year": 2023, "title": "Alonso joins", "text": "Fernando Alonso finishes on the podium in his first race for the team, in Bahrain."}
+   ]
+  },
+  {
+   "id": "cadillac",
+   "name": "Cadillac",
+   "base": "Fishers, Indiana, United States",
+   "colour": "#C9B037",
+   "lineage": [
+    {"name": "Cadillac", "constructor_ids": ["cadillac"], "from": 2026, "to": null}
+   ],
+   "timeline": [
+    {"year": 2025, "title": "An 11th team", "text": "Formula 1 approves a new American team backed by General Motors, the grid's first expansion since 2016."},
+    {"year": 2026, "title": "Debut season", "text": "Cadillac makes its debut with Valtteri Bottas and Sergio Pérez."}
+   ]
+  }
+ ]
+}

@@ -2,6 +2,9 @@
 Every chart in the dashboard. Same figures as the Streamlit version,
 Plus highlight support
 """
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -165,11 +168,18 @@ def compound_usage(counts):
     return style(fig)
 
 # RACE CENTRE · STANDINGS
-# Approximate team colours (plain hex values, no logos). Colour is never the only cue:
-# highlighted lines are also labelled at their end, and the table sits beside the chart.
-TEAM_COLORS = {"mercedes": "#27F4D2", "ferrari": "#E8002D", "mclaren": "#FF8000", "red_bull": "#3671C6",
-               "rb": "#6692FF", "alpine": "#FF87BC", "haas": "#B6BABD", "audi": "#52E252",
-               "williams": "#64C4FF", "aston_martin": "#229971", "cadillac": "#C9B037"}
+# Approximate team colours (plain hex values, no logos), kept with the team content in
+# content/teams.json. Colour is never the only cue: highlighted lines are also labelled at
+# their end, and the table sits beside the chart.
+def _team_colours():
+    path = Path(__file__).resolve().parent.parent / "content" / "teams.json"
+    try:
+        return {t["id"]: t["colour"] for t in json.loads(path.read_text(encoding="utf-8"))["teams"]}
+    except (OSError, ValueError, KeyError):
+        return {}
+
+
+TEAM_COLORS = _team_colours()
 MUTED = "#3A3D46"
 LABEL_INK = "#C9CBD2"
 
