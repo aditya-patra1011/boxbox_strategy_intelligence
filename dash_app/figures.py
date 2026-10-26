@@ -248,3 +248,22 @@ def track_outline(xy, color="#E8E8E8", width=4, height=None):
     if height:
         fig.update_layout(height=height)
     return fig
+
+
+def track_svg(xy, stroke="#E8E8E8", width=200, height=110, pad=8, line=3.2):
+    """The outline as a small inline SVG (data URI), light enough to put on 23 calendar cards at once."""
+    if not xy:
+        return None
+    x, y = xy
+    x0, x1, y0, y1 = min(x), max(x), min(y), max(y)
+    k = min((width - 2 * pad) / ((x1 - x0) or 1), (height - 2 * pad) / ((y1 - y0) or 1))
+    ox = (width - (x1 - x0) * k) / 2
+    oy = (height - (y1 - y0) * k) / 2
+    pts = [(ox + (a - x0) * k, oy + (y1 - b) * k) for a, b in zip(x, y)]       # SVG y runs downwards
+    path = "M" + " L".join(f"{a:.1f} {b:.1f}" for a, b in pts) + " Z"
+    sx, sy = pts[0]
+    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width} {height}'>"
+           f"<path d='{path}' fill='none' stroke='{stroke}' stroke-width='{line}' "
+           f"stroke-linejoin='round' stroke-linecap='round'/>"
+           f"<circle cx='{sx:.1f}' cy='{sy:.1f}' r='{line + 1.3}' fill='{RED}' stroke='#0E1014' stroke-width='1.5'/></svg>")
+    return "data:image/svg+xml;utf8," + svg.replace("#", "%23")

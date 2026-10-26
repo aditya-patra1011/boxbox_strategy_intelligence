@@ -101,3 +101,53 @@ def test_circuit_content_reads_and_rotates(tmp_path, monkeypatch):
     assert max(y) - min(y) == pytest.approx(20) and max(x) - min(x) == pytest.approx(10)   # turned 90°
     assert race_data.outline_xy("nowhere") is None
     race_data.circuits.cache_clear(), race_data.outline.cache_clear()
+
+
+# ── race weekends ──
+
+MEXICO = {"round": 19, "fp1_utc": "2026-10-30T18:30:00Z", "fp2_utc": "2026-10-30T22:00:00Z",
+          "fp3_utc": "2026-10-31T17:30:00Z", "sprint_qualifying_utc": None, "sprint_utc": None,
+          "qualifying_utc": "2026-10-31T21:00:00Z", "race_utc": "2026-11-01T20:00:00Z"}
+
+
+@pytest.mark.parametrize("at, status, session", [
+    ("2026-10-30T18:00:00Z", "upcoming", ("Practice 1", False)),
+    ("2026-10-30T19:00:00Z", "live", ("Practice 1", True)),      # FP1 running
+    ("2026-10-31T12:00:00Z", "live", ("Practice 3", False)),     # between sessions: still a live weekend
+    ("2026-11-01T21:30:00Z", "live", ("Race", True)),
+    ("2026-11-01T23:30:00Z", "completed", None),                 # 3h after the start, result or not
+])
+def test_weekend_status_through_a_weekend(at, status, session):
+    t = race_data.utc(at)
+    assert race_data.weekend_status(MEXICO, t) == status
+    s = race_data.session_now(MEXICO, t)
+    assert (None if s is None else (s[0], s[2])) == session
+
+
+def test_a_published_result_marks_the_race_completed_early():
+    assert race_data.weekend_status(MEXICO, race_data.utc("2026-11-01T21:30:00Z"), has_result=True) == "completed"
+
+
+def test_sprint_weekend_sessions_are_in_time_order():
+    china = {"fp1_utc": "2026-03-13T03:30:00Z", "sprint_qualifying_utc": "2026-03-13T07:30:00Z",
+             "sprint_utc": "2026-03-14T03:00:00Z", "qualifying_utc": "2026-03-14T07:00:00Z",
+             "race_utc": "2026-03-15T07:00:00Z", "fp2_utc": None, "fp3_utc": None}
+    assert [n for n, *_ in race_data.sessions(china)] == ["Practice 1", "Sprint Qualifying", "Sprint", "Qualifying", "Race"]
+
+
+def test_now_can_be_pinned_for_demos(monkeypatch):
+    monkeypatch.setenv("BOXBOX_NOW", "2026-10-31T21:30:00Z")
+    assert race_data.now() == race_data.utc("2026-10-31T21:30:00Z")
+
+
+def test_calendar_marks_winners_and_status(store):
+    cal = race_data.calendar(2026, at=race_data.utc("2026-03-31T00:00:00Z")).set_index("round")
+    assert cal.loc[1, "status"] == "completed" and cal.loc[1, "winner_code"] == "RUS"
+    assert cal.loc[4, "status"] == "upcoming" and cal.loc[4, "winner"] is None
+
+
+def test_strategy_links_point_at_circuits_in_the_content():
+    import json
+    ids = {c["circuit_id"] for c in json.loads((race_data.BASE / "content" / "circuits.json").read_text("utf-8"))["circuits"]}
+    assert set(race_data.STRATEGY_CIRCUIT) <= ids
+    assert {"madring", "sepang", "interlagos"} <= ids - set(race_data.STRATEGY_CIRCUIT)

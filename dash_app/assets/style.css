@@ -575,3 +575,157 @@ body {
   font-size: 11.5px;
   color: var(--muted);
 }
+
+/* Race Centre · Calendar */
+.bb-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+.bb-cal-card {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  background: linear-gradient(145deg, #1b1c21 0%, #151619 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.bb-cal-card:hover {
+  transform: translateY(-3px);
+  border-color: #3a3b42;
+}
+.bb-cal-card:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+.bb-cal-completed {
+  opacity: 0.85;
+}
+.bb-cal-next {
+  border-color: rgba(232, 0, 45, 0.45);
+}
+.bb-cal-live {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red) inset;
+}
+.bb-cal-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.bb-chip-round {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.8px;
+  margin-right: auto;
+}
+.bb-badge-live,
+.bb-badge-next,
+.bb-badge-sprint {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.bb-badge-live {
+  background: var(--red);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bb-badge-next {
+  border: 1px solid rgba(232, 0, 45, 0.6);
+  color: #ff4d6d;
+}
+.bb-badge-sprint {
+  background: #23242a;
+  color: #c9cad1;
+}
+.bb-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+}
+.bb-badge-live .bb-live-dot {
+  margin-right: 0;
+  background: #fff;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bb-live-dot {
+    animation: bbPulse 1.4s ease-in-out infinite;
+  }
+}
+@keyframes bbPulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+.bb-live-text {
+  color: #ff4d6d;
+  font-weight: 700;
+}
+.bb-cal-track {
+  width: 100%;
+  height: 110px;
+  margin: 6px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bb-cal-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+.bb-cal-foot {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #23242a;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+.bb-cal-winner {
+  font-weight: 700;
+  color: #e8e8e8;
+}
+.bb-cal-foot .bb-swatch {
+  margin-right: 2px;
+}
+.bb-modal .modal-content {
+  background: #141519;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.bb-modal .modal-header {
+  border-bottom: 1px solid var(--line);
+}
+.bb-facts {
+  display: grid;
+  gap: 14px;
+}
+.bb-fact-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+.bb-link-btn {
+  display: inline-block;
+  text-decoration: none;
+}
+.bb-link-btn:hover {
+  color: #fff;
+}

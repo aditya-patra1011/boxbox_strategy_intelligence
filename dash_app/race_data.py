@@ -8,6 +8,7 @@ import math
 import os
 import sqlite3
 from contextlib import closing
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -151,3 +152,86 @@ def outline_xy(circuit_id):
     centre = (sum(o["x"]) / len(o["x"]), sum(o["y"]) / len(o["y"]))
     x, y = rotate(o["x"] + o["x"][:1], o["y"] + o["y"][:1], o["rotation_deg"], centre)
     return x, y
+
+
+# ── race weekends ──
+
+# Strategy Lab has models for these circuits (2024 data, Phases 1-8). New venues (Madring,
+# Sepang) and Interlagos (2024 was fully wet) have none.
+STRATEGY_CIRCUIT = {
+    "albert_park": "Australia", "shanghai": "China", "suzuka": "Japan", "miami": "Miami",
+    "villeneuve": "Canada", "monaco": "Monaco", "catalunya": "Spain", "red_bull_ring": "Austria",
+    "silverstone": "Great Britain", "spa": "Belgium", "hungaroring": "Hungary", "zandvoort": "Netherlands",
+    "monza": "Italy", "baku": "Azerbaijan", "marina_bay": "Singapore", "americas": "United States",
+    "rodriguez": "Mexico", "vegas": "Las Vegas", "losail": "Qatar", "yas_marina": "Abu Dhabi",
+}
+
+SESSIONS = [("fp1_utc", "Practice 1"), ("fp2_utc", "Practice 2"), ("fp3_utc", "Practice 3"),
+            ("sprint_qualifying_utc", "Sprint Qualifying"), ("sprint_utc", "Sprint"),
+            ("qualifying_utc", "Qualifying"), ("race_utc", "Race")]
+SESSION_LENGTH = {"Race": timedelta(hours=2, minutes=30)}      # everything else: 1h30
+RACE_DONE_AFTER = timedelta(hours=3)
+
+
+def now():
+    """Current UTC time. Setting BOXBOX_NOW (ISO time) pins it, to demo or screenshot a race weekend."""
+    fixed = os.environ.get("BOXBOX_NOW")
+    return utc(fixed) if fixed else datetime.now(timezone.utc)
+
+
+def utc(text):
+    if not isinstance(text, str) or not text:
+        return None
+    t = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def sessions(race):
+    """[(name, start, end)] for one weekend, in order."""
+    out = [(name, utc(race.get(col))) for col, name in SESSIONS if utc(race.get(col))]
+    return sorted(((n, t, t + SESSION_LENGTH.get(n, timedelta(hours=1, minutes=30))) for n, t in out),
+                  key=lambda s: s[1])
+
+
+def weekend_status(race, at, has_result=False):
+    """"completed", "live" (from first practice until the race is over) or "upcoming"."""
+    ss = sessions(race)
+    if has_result or at >= utc(race["race_utc"]) + RACE_DONE_AFTER:
+        return "completed"
+    return "live" if ss and at >= ss[0][1] else "upcoming"
+
+
+def session_now(race, at):
+    """(name, start, running) for the session on track now, else the next one; None once all are done."""
+    for name, start, end in sessions(race):
+        if start <= at <= end:
+            return name, start, True
+        if at < start:
+            return name, start, False
+    return None
+
+
+def calendar(season, at=None):
+    """Every round with its weekend status and, for finished races, the winner."""
+    at = at or now()
+    df = races(season)
+    if df.empty:
+        return df
+    res = results(season)
+    winners = res[res["position"] == 1].set_index("round") if not res.empty else pd.DataFrame()
+    rows = []
+    for _, r in df.iterrows():
+        race = r.to_dict()
+        w = winners.loc[race["round"]] if race["round"] in winners.index else None
+        race["status"] = weekend_status(race, at, has_result=w is not None)
+        race["winner"] = None if w is None else f"{w['given_name']} {w['family_name']}"
+        race["winner_code"] = None if w is None else w["code"]
+        race["winner_team"] = None if w is None else w["team"]
+        race["winner_team_id"] = None if w is None else w["constructor_id"]
+        rows.append(race)
+    return pd.DataFrame(rows)
+
+
+def podium(season, rnd):
+    res = results(season)
+    return res[(res["round"] == rnd) & (res["position"] <= 3)].sort_values("position")
