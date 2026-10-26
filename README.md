@@ -395,13 +395,12 @@ The suite runs on saved API responses, so it needs no network.
 
 ### Strategy Lab data (Phases 1-8)
 
-`data/`, `models/` and `circuit_maps/` are gitignored because they're large and fully reproducible. Run the phase scripts in order:
+`data/`, `models/` and `circuit_maps/` are gitignored because they're large and fully reproducible. **Run the notebooks in `notebooks/` in order**, Phase 1 to Phase 8: open each one and run all cells top to bottom.
 
-```bash
-python phases/phase1_collection.py
-```
+Each phase also exists as a plain script in `phases/`. Which version is current:
 
-Then `phase2_engineering.py` through `phase8_circuit_maps.py` the same way. **The scripts in `phases/` are the source of truth**: they include the Phase 3 degradation fix. The notebooks in `notebooks/` are the original exploratory versions, and `notebooks/phase3_degradation.ipynb` differs from the fixed script, so don't use it to regenerate the models.
+- **Phase 3:** the script and the notebook match, and both include the degradation fix.
+- **Phases 1, 2 and 4-8:** the notebooks are newer than the scripts. They carry the October bug fixes; for Phase 5 that's the race-time maths, real Plan B stint lengths and the risk cut-offs. The scripts are being brought up to date, so use the notebooks for these phases until then.
 
 ### Settings (environment variables)
 
@@ -445,7 +444,8 @@ The 2024 São Paulo Grand Prix is excluded from this analysis, since the race wa
 - [x] Race Centre: 2026 season pages, race replay, race analysis and a watcher that updates on free data
 - [x] Fix target leakage in the Phase 3 degradation model
 - [ ] Public deployment of the Dash app (app + watcher)
-- [ ] Bring `notebooks/` in line with the fixed `phases/` scripts
+- [x] Phase 3 notebook in line with the fixed script
+- [ ] Bring the `phases/` scripts for Phases 1, 2 and 4-8 up to date with their newer notebooks, then re-run Phase 5
 - [ ] Retrain Strategy Lab on 2025/2026 data (Race Centre already stores 2026 races)
 - [ ] Look at why Phase 5 finds no Plan C at 9 circuits (and Monaco's lap-5 stop)
 - [ ] Dedicated charts for extra Phase 3-6 outputs (model metrics, hazard ratios, model comparison)

@@ -143,9 +143,7 @@ def train_polynomial(X, y, groups):
 
 """TRAIN RIDGE REGRESSION
 
-Linear regression across ALL features with L2 regularization to prevent overfitting when features are correlated
-
-(e.g. StintProgress and TyreLife move togther)
+Linear regression across both features (TyreLife and TrackTemp) with L2 regularization to prevent overfitting when features are correlated
 """
 
 def train_ridge(X, y, groups):
