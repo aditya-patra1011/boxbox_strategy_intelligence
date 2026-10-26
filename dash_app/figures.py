@@ -408,3 +408,108 @@ def speed_ticker(height=320):
     fig.update_layout(height=height, legend=dict(orientation="h", y=1.12, x=0), uirevision="speed")
     fig.layout.transition = None
     return fig
+
+
+# RACE CENTRE · RACE ANALYSIS
+def degradation_scatter(rel, rates):
+    """Every clean lap against its tyre age, relative to its own stint's average, with each
+    compound's within-stint trend drawn through it."""
+    if rel.empty:
+        return empty("Not enough clean laps to measure degradation")
+    fig = go.Figure()
+    for compound in ["SOFT", "MEDIUM", "HARD"]:
+        g = rel[rel["compound"] == compound]
+        if g.empty:
+            continue
+        fig.add_trace(go.Scatter(x=g["tyre_age"], y=g["delta"], mode="markers", name=f"{compound.title()} laps",
+                                 showlegend=False, hoverinfo="skip",
+                                 marker=dict(color=COMPOUND_COLORS[compound], size=6, opacity=0.35)))
+        r = rates[rates["compound"] == compound]
+        if not r.empty:
+            rate, mid = r["rate"].iloc[0], g["tyre_age"].mean()
+            xs = [g["tyre_age"].min(), g["tyre_age"].max()]
+            fig.add_trace(go.Scatter(x=xs, y=[rate * (x - mid) for x in xs], mode="lines",
+                                     name=f"{compound.title()} {rate:+.3f} s/lap",
+                                     line=dict(color=COMPOUND_COLORS[compound], width=3)))
+    fig.add_hline(y=0, line=dict(color=GRID, width=1))
+    fig.update_xaxes(title="Tyre age (laps)")
+    fig.update_yaxes(title="Lap time vs stint average (s)", range=[-2.5, 2.5])
+    style(fig, margin=dict(l=10, r=10, t=30, b=10))
+    fig.update_layout(legend=dict(orientation="h", y=1.1, x=0))
+    fig.layout.transition = None
+    return fig
+
+
+def degradation_compare(rates, model):
+    """Measured rate (filled) against the 2024 model's rate (hollow) for each compound."""
+    comps = [c for c in ["SOFT", "MEDIUM", "HARD"] if c in set(rates["compound"]) | set(model)]
+    if not comps:
+        return empty("No degradation to compare")
+    fig = go.Figure()
+    for c in comps:
+        actual = rates.set_index("compound")["rate"].get(c)
+        predicted = model.get(c)
+        pts = [v for v in (actual, predicted) if v is not None]
+        if len(pts) == 2:
+            fig.add_trace(go.Scatter(x=pts, y=[c.title()] * 2, mode="lines", line=dict(color="#4A4C55", width=2),
+                                     showlegend=False, hoverinfo="skip"))
+    rows = [(c.title(), rates.set_index("compound")["rate"].get(c), model.get(c), COMPOUND_COLORS[c]) for c in comps]
+    fig.add_trace(go.Scatter(x=[a for _, a, _, _ in rows if a is not None], y=[n for n, a, _, _ in rows if a is not None],
+                             mode="markers+text", name="Measured, this race", text=[f"{a:+.3f}" for _, a, _, _ in rows if a is not None],
+                             textposition="top center", textfont=dict(color=LABEL_INK, size=11),
+                             marker=dict(size=16, color=[k for _, a, _, k in rows if a is not None]),
+                             hovertemplate="%{y}: %{x:+.3f} s/lap measured<extra></extra>"))
+    fig.add_trace(go.Scatter(x=[m for _, _, m, _ in rows if m is not None], y=[n for n, _, m, _ in rows if m is not None],
+                             mode="markers+text", name="BoxBox model (2024 data)", text=[f"{m:+.3f}" for _, _, m, _ in rows if m is not None],
+                             textposition="bottom center", textfont=dict(color=LABEL_INK, size=11),
+                             marker=dict(size=14, color="rgba(0,0,0,0)", line=dict(width=2.5, color=[k for _, _, m, k in rows if m is not None])),
+                             hovertemplate="%{y}: %{x:+.3f} s/lap model<extra></extra>"))
+    fig.add_vline(x=0, line=dict(color="#6F717A", width=1, dash="dot"))
+    fig.update_xaxes(title="Seconds lost per lap of tyre age")
+    fig.update_yaxes(categoryorder="array", categoryarray=[c.title() for c in comps][::-1])
+    style(fig, margin=dict(l=10, r=10, t=30, b=10))
+    fig.update_layout(legend=dict(orientation="h", y=1.15, x=0), height=300)
+    fig.layout.transition = None
+    return fig
+
+
+def pace_evolution(laps, chosen, codes, colours, periods, total_laps):
+    """Lap times through the race for the chosen drivers, Safety Car / VSC / red-flag laps shaded."""
+    d = laps[laps["driver_number"].isin(chosen)].dropna(subset=["lap_duration"])
+    if d.empty:
+        return empty("Pick drivers to compare their lap times")
+    fig = go.Figure()
+    for n in chosen:
+        g = d[d["driver_number"] == n].sort_values("lap_number")
+        fig.add_trace(go.Scatter(x=g["lap_number"], y=g["lap_duration"], mode="lines", name=codes.get(n, str(n)),
+                                 line=dict(color=colours.get(n, "#9A9CA5"), width=2),
+                                 hovertemplate="%{fullData.name} · lap %{x}: %{y:.3f}s<extra></extra>"))
+    shapes, notes = _neutral_bands(periods)
+    green = d[~d["lap_number"].isin({l for p in periods.itertuples() for l in range(p.start_lap, p.end_lap + 1)})]
+    lo, hi = green["lap_duration"].quantile(0.01), green["lap_duration"].quantile(0.9)
+    fig.update_layout(shapes=shapes, annotations=notes)
+    fig.update_xaxes(title="Lap", range=[1, total_laps + 0.5])
+    fig.update_yaxes(title="Lap time (s)", range=[lo - 0.6, hi + 1.5])
+    style(fig, margin=dict(l=10, r=10, t=36, b=10), hovermode="x unified")
+    fig.update_layout(legend=dict(orientation="h", y=1.12, x=0))
+    fig.layout.transition = None
+    return fig
+
+
+def gap_bars(values, labels, title, fmt="+{:.3f}s", height=None):
+    """One measure per driver as horizontal bars, best first: each bar is how far that driver was
+    from the best (always drawn rightwards; the label keeps the sign), in one neutral colour."""
+    if not len(values):
+        return empty("No data")
+    best = values[0]
+    fig = go.Figure(go.Bar(x=[abs(v - best) for v in values], y=labels, orientation="h",
+                           marker=dict(color="#8A8C94", cornerradius=4),
+                           text=["Best" if v == best else fmt.format(v - best) for v in values],
+                           textposition="outside", cliponaxis=False, textfont=dict(color=LABEL_INK, size=11),
+                           hovertemplate="%{y}: %{text}<extra></extra>"))
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(title=title, showgrid=True)
+    style(fig, margin=dict(l=10, r=40, t=10, b=10))
+    fig.update_layout(height=height or 22 * len(labels) + 80, bargap=0.3)
+    fig.layout.transition = None
+    return fig
