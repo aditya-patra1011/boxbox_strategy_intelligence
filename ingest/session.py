@@ -139,14 +139,53 @@ def ingest_session(f1, conn, session_key=None, now=None, log=print):
     return {"session_key": key, **counts}
 
 
+def ingest_season_stints(f1, conn, year, now=None, log=print):
+    """Light pass over every finished race of a season: the session, its drivers and their tyre
+    stints only (3 requests a race), so result tables can show each driver's final tyre.
+    Races already stored in full are left alone."""
+    now = now or datetime.now(timezone.utc)
+    races = [dict(zip(("season", "round", "circuit_id", "race_utc"), r)) for r in
+             conn.execute("SELECT season, round, circuit_id, race_utc FROM races WHERE season = ?", (year,))]
+    have = {k for (k,) in conn.execute("SELECT session_key FROM sessions")}
+    done = [s for s in f1.get("sessions", year=year, session_name="Race")
+            if not s.get("is_cancelled") and _utc(s["date_end"]) + DELAY <= now and s["session_key"] not in have]
+    for s in done:
+        key = s["session_key"]
+        season, rnd, circuit_id = race_for(s, races)
+        stints = f1.get("stints", session_key=key)
+        drivers = f1.get("drivers", session_key=key)
+        with conn:
+            upsert(conn, "session_drivers", [{"session_key": key, "driver_number": d["driver_number"],
+                                              "code": d["name_acronym"], "first_name": d["first_name"],
+                                              "last_name": d["last_name"], "team_name": d["team_name"],
+                                              "team_colour": d.get("team_colour")} for d in drivers])
+            conn.execute("DELETE FROM stints WHERE session_key = ?", (key,))
+            upsert(conn, "stints", [{"session_key": key, **{k: x.get(k) for k in (
+                "driver_number", "stint_number", "compound", "lap_start", "lap_end", "tyre_age_at_start")}} for x in stints])
+            upsert(conn, "sessions", [{
+                "session_key": key, "meeting_key": s["meeting_key"], "season": season, "round": rnd,
+                "circuit_id": circuit_id, "session_type": s["session_type"], "session_name": s["session_name"],
+                "date_start": s["date_start"], "date_end": s["date_end"],
+                "total_laps": max((x.get("lap_end") or 0 for x in stints), default=None),
+                "ingested_utc": now.isoformat(timespec="seconds")}])
+        log(f"  round {rnd} {s['circuit_short_name']}: {len(stints)} stints")
+    log(f"stints: {len(done)} races added ({f1.requests} OpenF1 requests)")
+    return len(done)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="python -m ingest.session", description="Store one session for replay.")
     ap.add_argument("--session-key", type=int, help="OpenF1 session key (default: latest finished race)")
+    ap.add_argument("--season-stints", type=int, metavar="YEAR",
+                    help="instead: store just the tyre stints of every finished race that season")
     ap.add_argument("--db", default=DEFAULT_PATH)
     args = ap.parse_args()
     conn = connect(args.db)
     try:
-        ingest_session(openf1.Client(), conn, args.session_key)
+        if args.season_stints:
+            ingest_season_stints(openf1.Client(), conn, args.season_stints)
+        else:
+            ingest_session(openf1.Client(), conn, args.session_key)
     finally:
         conn.close()
 

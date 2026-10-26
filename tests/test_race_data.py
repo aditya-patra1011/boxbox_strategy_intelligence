@@ -176,3 +176,58 @@ def test_age_counts_birthdays():
     at = race_data.utc("2026-08-25T00:00:00Z")
     assert race_data.age("2006-08-25", at) == 20
     assert race_data.age("2006-08-26", at) == 19
+
+
+# ── race result tables ──
+
+@pytest.mark.parametrize("ms, text", [(13078, "+13.078"), (79183, "+1:19.183"), (4407, "+4.407"), (600000, "+10:00.000")])
+def test_fmt_gap(ms, text):
+    assert race_data.fmt_gap(ms) == text
+
+
+def test_race_table_gaps_intervals_laps_down_and_tyres():
+    res = pd.DataFrame([
+        # round, position, position_text, number, grid, laps, status, time_text, time_millis, fastest_lap_rank
+        (18, 1, "1", 12, 1, 56, "Finished", "1:35:16.650", 5716650, 4),
+        (18, 2, "2", 16, 4, 56, "Finished", "+13.078", 5729728, 1),
+        (18, 3, "3", 41, 14, 55, "Lapped", "+6.344", 5722994, 7),
+        (18, 4, "4", 5, 21, 55, "Lapped", "+14.197", 5730847, 2),
+        (18, 5, "R", 77, 13, 48, "Retired", None, None, 21),
+        (18, 6, "W", 27, 11, 0, "Did not start", None, None, None),
+    ], columns=["round", "position", "position_text", "number", "grid", "laps", "status", "time_text", "time_millis",
+                "fastest_lap_rank"])
+    tyres = pd.DataFrame({"round": [18, 18, 18], "number": [12, 16, 41], "compound": ["HARD", "HARD", "SOFT"]})
+    t = race_data.race_table(res, 18, tyres)
+    assert t["gap"].tolist() == ["1:35:16.650", "+13.078", "+1 Lap", "+1 Lap", "DNF", "DNS"]
+    assert t["interval"].tolist() == ["", "+13.078", "+1 Lap", "+7.853", "", ""]
+    assert t["gained"].tolist()[:4] == [0, 2, 11, 17] and pd.isna(t["gained"].iloc[4])
+    assert t["fastest_lap"].tolist() == [False, True, False, False, False, False]
+    assert t["final_tyre"].tolist()[:3] == ["HARD", "HARD", "SOFT"] and pd.isna(t["final_tyre"].iloc[3])
+
+
+def test_season_grid_marks_retirements(store):
+    pos, labels = race_data.season_grid(2026)
+    assert list(pos.columns) == [1, 2, 3] and pos.index[0] == race_data.latest_table(
+        race_data.driver_standings(2026), "driver_id")["driver_id"].iloc[0]
+    assert labels.loc["hulkenberg", 1] == "DNS" and pd.isna(pos.loc["hulkenberg", 1])
+    assert labels.loc["russell", 1] == "1" and pos.loc["russell", 1] == 1
+
+
+def test_final_tyres_takes_the_last_stint(tmp_path, monkeypatch):
+    from ingest.store import connect, upsert
+    path = tmp_path / "t.sqlite"
+    conn = connect(path)
+    upsert(conn, "sessions", [{"session_key": 9, "season": 2026, "round": 6, "session_type": "Race"}])
+    upsert(conn, "stints", [{"session_key": 9, "driver_number": 12, "stint_number": n, "compound": c}
+                            for n, c in [(1, "MEDIUM"), (2, "HARD"), (3, "SOFT")]])
+    conn.commit(), conn.close()
+    monkeypatch.setattr(race_data, "STORE", path)
+    assert race_data.final_tyres(2026).to_dict("records") == [{"round": 6, "number": 12, "compound": "SOFT"}]
+
+
+def test_countdown_reads_naturally():
+    from datetime import timedelta
+    assert race_data.countdown(timedelta(days=4, hours=2, minutes=30)) == "4 days 2 h"
+    assert race_data.countdown(timedelta(days=1)) == "1 day 0 h"
+    assert race_data.countdown(timedelta(hours=3, minutes=20)) == "3 h 20 min"
+    assert race_data.countdown(timedelta(minutes=12)) == "12 min"

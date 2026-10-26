@@ -277,3 +277,32 @@ def track_svg(xy, stroke="#E8E8E8", width=200, height=110, pad=8, line=3.2):
            f"stroke-linejoin='round' stroke-linecap='round'/>"
            f"<circle cx='{sx:.1f}' cy='{sy:.1f}' r='{line + 1.3}' fill='{RED}' stroke='#0E1014' stroke-width='1.5'/></svg>")
     return "data:image/svg+xml;utf8," + svg.replace("#", "%23")
+
+
+# RACE CENTRE · HOME
+# One hue for an ordered measure: the stronger the red, the better the finish.
+POSITION_SCALE = [[0.0, "#FF3355"], [0.12, "#D1102F"], [0.35, "#7A1426"], [0.7, "#3A1820"], [1.0, "#22181B"]]
+
+
+def season_heatmap(pos, labels, names, race_names):
+    """Finishing position of every driver (rows) at every round (columns); DNF/DNS in grey."""
+    if pos.empty:
+        return empty("No results yet. Run: python -m ingest")
+    rounds = list(pos.columns)
+    y = [names.get(d, d) for d in pos.index]
+    custom = [[race_names.get(r, "") for r in rounds] for _ in pos.index]
+    out = pos.isna() & labels.notna()
+    fig = go.Figure()
+    fig.add_trace(go.Heatmap(z=out.astype(float).where(out).values, x=rounds, y=y, showscale=False, hoverinfo="skip",
+                             colorscale=[[0, "#2A2B30"], [1, "#2A2B30"]], xgap=2, ygap=2))
+    fig.add_trace(go.Heatmap(z=pos.values, x=rounds, y=y, zmin=1, zmax=22, colorscale=POSITION_SCALE, showscale=False,
+                             xgap=2, ygap=2, customdata=custom, hovertemplate="<b>%{y}</b> · R%{x} %{customdata}<br>Finished P%{z}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=[r for r in rounds for _ in pos.index], y=y * len(rounds), mode="text",
+                             text=[labels.loc[d, r] if pd.notna(labels.loc[d, r]) else "" for r in rounds for d in pos.index],
+                             textfont=dict(size=10, color=LABEL_INK), hoverinfo="skip"))
+    fig.update_xaxes(tickvals=rounds, ticktext=[f"R{r}" for r in rounds], side="top", showgrid=False)
+    fig.update_yaxes(autorange="reversed", showgrid=False)
+    style(fig, margin=dict(l=10, r=10, t=30, b=10), showlegend=False)
+    fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", height=28 * len(y) + 60, clickmode="event")
+    fig.layout.transition = None
+    return fig
