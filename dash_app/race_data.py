@@ -407,3 +407,128 @@ def season_grid(season):
     pos = res.pivot(index="driver_id", columns="round", values="cell").reindex(order)
     lab = res.pivot(index="driver_id", columns="round", values="label").reindex(order)
     return pos, lab
+
+
+# ── Race Live replay ──
+
+SC_START = {"SAFETY CAR DEPLOYED": "SC", "VSC DEPLOYED": "VSC", "VIRTUAL SAFETY CAR DEPLOYED": "VSC"}
+SC_END = {"SAFETY CAR IN THIS LAP": "SC", "VSC ENDING": "VSC", "VIRTUAL SAFETY CAR ENDING": "VSC"}
+NEUTRAL_NAMES = {"SC": "Safety Car", "VSC": "Virtual Safety Car", "RED": "Red flag"}
+
+
+def neutralisations(race_control):
+    """Safety Car, Virtual Safety Car and red-flag periods from race control messages:
+    kind, start_lap, end_lap, laps, minutes.
+
+    SC runs from DEPLOYED to IN THIS LAP; VSC from DEPLOYED to ENDING; a red flag from
+    "RED FLAG ..." until the session restarts (SESSION STARTED), and it ends any SC running."""
+    columns = ["kind", "name", "start_lap", "end_lap", "laps", "minutes"]
+    if race_control.empty:
+        return pd.DataFrame(columns=columns)
+    rc = race_control.sort_values("date")
+    opened, out = {}, []
+
+    def close(kind, lap, when):
+        start_lap, start_t = opened.pop(kind)
+        out.append({"kind": kind, "name": NEUTRAL_NAMES[kind], "start_lap": int(start_lap), "end_lap": int(lap),
+                    "laps": int(lap - start_lap + 1),
+                    "minutes": round((utc(when) - utc(start_t)).total_seconds() / 60, 1)})
+
+    for _, r in rc.iterrows():
+        msg, lap, when = (r["message"] or "").upper().strip(), r["lap_number"], r["date"]
+        if pd.isna(lap):
+            continue
+        if msg in SC_START and SC_START[msg] not in opened:
+            opened[SC_START[msg]] = (lap, when)
+        elif msg in SC_END and SC_END[msg] in opened:
+            close(SC_END[msg], lap, when)
+        elif msg.startswith("RED FLAG") and "RED" not in opened:
+            if "SC" in opened:
+                close("SC", lap, when)
+            opened["RED"] = (lap, when)
+        elif r["category"] == "SessionStatus" and msg in ("SESSION STARTED", "SESSION RESUMED") and "RED" in opened:
+            close("RED", lap, when)
+    last_lap, last_t = rc["lap_number"].max(), rc["date"].iloc[-1]
+    for kind in list(opened):                    # still running when the messages stop
+        close(kind, last_lap, last_t)
+    if not out:                                  # a clean race: no SC, VSC or red flag
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(out).sort_values("start_lap").reset_index(drop=True)
+
+
+def seconds_since(start, dates):
+    """ISO dates -> seconds after `start` (the session start), the replay clock's units."""
+    return (pd.to_datetime(dates, utc=True, format="ISO8601") - pd.Timestamp(start)).dt.total_seconds()
+
+
+def lap_starts(laps, session_start):
+    """{lap: replay time it began}, taken from the first car to start it (the leader)."""
+    if laps.empty:
+        return {}
+    t = seconds_since(session_start, laps["date_start"])
+    return {int(k): round(v, 2) for k, v in t.groupby(laps["lap_number"]).min().sort_index().items()}
+
+
+def lap_at(starts, t):
+    """The lap the leader is on at replay time t (0 before the start)."""
+    lap = 0
+    for n, s in starts.items():
+        if s <= t:
+            lap = n
+    return lap
+
+
+def board_at(t, session_start, positions, intervals, drivers):
+    """Running order at replay time t: position and gap to the leader (or laps down)."""
+    if positions.empty:
+        return pd.DataFrame()
+    pos = positions if "t" in positions else positions.assign(t=seconds_since(session_start, positions["date"]))
+    pos = pos[pos["t"] <= t].sort_values("t").groupby("driver_number").tail(1)
+    iv = intervals if "t" in intervals else intervals.assign(t=seconds_since(session_start, intervals["date"]))
+    iv = iv[iv["t"] <= t].sort_values("t").groupby("driver_number").tail(1).set_index("driver_number")
+    out = pos[["driver_number", "position"]].merge(drivers, on="driver_number", how="left")
+    def gap(n, p):
+        if p == 1:
+            return "Leader"
+        if n not in iv.index:
+            return ""                             # no gap published yet (the opening moments)
+        if isinstance(iv.loc[n, "gap_text"], str):
+            return iv.loc[n, "gap_text"]          # lapped: "+1 LAP"
+        return f"+{iv.loc[n, 'gap_to_leader']:.1f}" if pd.notna(iv.loc[n, "gap_to_leader"]) else ""
+
+    out["gap"] = [gap(n, p) for n, p in zip(out["driver_number"], out["position"])]
+    return out.sort_values("position").reset_index(drop=True)
+
+
+def stint_index(stints):
+    """{driver_number: [(lap_start, compound, tyre_age_at_start), ...]} in stint order, built once per session."""
+    out = {}
+    for r in stints.sort_values("stint_number").itertuples():
+        out.setdefault(int(r.driver_number), []).append((int(r.lap_start or 1), r.compound, int(r.tyre_age_at_start or 0)))
+    return out
+
+
+def tyre_on_lap(index, driver_number, lap):
+    """(compound, laps on that set) for a driver on a given lap, or (None, None)."""
+    lap = max(lap, 1)
+    current = [s for s in index.get(driver_number, []) if s[0] <= lap]
+    if not current:
+        return None, None
+    start, compound, age = current[-1]
+    return compound, age + lap - start
+
+
+def replay_chunk(session_key, circuit_id, t_from, t_to):
+    """Every car's samples between two replay times, turned into the outline's display frame:
+    {driver_number: {"t": [...], "x": [...], "y": [...], "s": [...]}} (s = speed, km/h)."""
+    o = outline(circuit_id)
+    cs = car_samples(session_key, t_from, t_to)
+    if cs.empty or not o:
+        return {}
+    centre = (sum(o["x"]) / len(o["x"]), sum(o["y"]) / len(o["y"]))
+    cs = cs.dropna(subset=["x", "y"])
+    x, y = rotate(cs["x"].tolist(), cs["y"].tolist(), o["rotation_deg"], centre)
+    cs = cs.assign(rx=[round(v) for v in x], ry=[round(v) for v in y])
+    return {int(n): {"t": g["t"].tolist(), "x": g["rx"].tolist(), "y": g["ry"].tolist(),
+                     "s": [None if pd.isna(v) else int(v) for v in g["speed"]]}
+            for n, g in cs.groupby("driver_number")}

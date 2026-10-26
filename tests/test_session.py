@@ -117,3 +117,9 @@ def test_session_table_rejects_unknown_tables():
     import pytest
     with pytest.raises(ValueError):
         race_data.session_table("drivers; DROP TABLE races", 1)
+
+
+def test_thin_drops_samples_outside_the_session_window():
+    location = [{"date": at(-80000), "x": 9, "y": 9}, {"date": at(5), "x": 1, "y": 1}, {"date": at(9000), "x": 2, "y": 2}]
+    rows = S.thin(location, [], datetime.fromisoformat(T0), window=(-600, 7200))
+    assert [r["t"] for r in rows] == [5.0]
