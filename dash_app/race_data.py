@@ -274,3 +274,50 @@ def initials(given, family):
 def age(date_of_birth, at=None):
     born, at = datetime.fromisoformat(date_of_birth).date(), (at or now()).date()
     return at.year - born.year - ((at.month, at.day) < (born.month, born.day))
+
+
+# ── replay sessions (python -m ingest.session) ──
+
+SESSION_TABLES = {"session_drivers", "laps", "stints", "pits", "race_control", "positions", "intervals", "weather"}
+
+
+def latest_session(session_type="Race"):
+    """The newest stored session of a type, as a dict, or None."""
+    df = query("SELECT * FROM sessions WHERE session_type = ? ORDER BY date_start DESC LIMIT 1", (session_type,))
+    return df.iloc[0].to_dict() if not df.empty else None
+
+
+def session_table(table, session_key):
+    """Every row one session has in a table: laps, stints, pits, race_control, positions, ..."""
+    if table not in SESSION_TABLES:
+        raise ValueError(f"not a session table: {table}")
+    return query(f"SELECT * FROM {table} WHERE session_key = ?", (session_key,))
+
+
+def car_samples(session_key, t_from=None, t_to=None, drivers=None):
+    """Thinned car position and telemetry; t is seconds since the session start."""
+    sql, params = "SELECT * FROM car_samples WHERE session_key = ?", [session_key]
+    if t_from is not None:
+        sql, params = sql + " AND t >= ?", params + [t_from]
+    if t_to is not None:
+        sql, params = sql + " AND t <= ?", params + [t_to]
+    if drivers:
+        sql, params = sql + f" AND driver_number IN ({','.join('?' * len(drivers))})", params + list(drivers)
+    return query(sql + " ORDER BY driver_number, t", params)
+
+
+def positions_by_lap(laps, positions):
+    """Each driver's race position at the end of every lap they completed (for the lap chart).
+    A lap ends when the next one starts; the position is the latest change at or before then."""
+    if laps.empty or positions.empty:
+        return pd.DataFrame(columns=["driver_number", "lap_number", "position"])
+    laps = laps.sort_values(["driver_number", "lap_number"]).copy()
+    start = pd.to_datetime(laps["date_start"], utc=True, format="ISO8601")
+    laps["end"] = start.groupby(laps["driver_number"]).shift(-1)
+    laps["end"] = laps["end"].fillna(start + pd.to_timedelta(laps["lap_duration"], unit="s"))
+    laps = laps.dropna(subset=["end"]).sort_values("end")
+    pos = positions.assign(date=pd.to_datetime(positions["date"], utc=True, format="ISO8601")).sort_values("date")
+    out = pd.merge_asof(laps, pos[["driver_number", "date", "position"]], left_on="end", right_on="date",
+                        by="driver_number", direction="backward")
+    return out.dropna(subset=["position"]).astype({"position": int})[["driver_number", "lap_number", "position"]] \
+        .sort_values(["lap_number", "position"]).reset_index(drop=True)
