@@ -209,13 +209,13 @@ Season-wide compound usage frequency.
 
 **Model selection isn't one-size-fits-all.** Random Forest won 33 of 58 circuit/compound degradation models, Ridge Regression won 13 and Polynomial 12. Tyre degradation is often non-linear but genuinely linear at some circuits. Letting cross-validated RMSE choose the model per circuit beat assuming one formula everywhere.
 
-**A target-leakage bug in the degradation model, found and fixed.** Phase 3 originally predicted `LapTimeSeconds` with `FuelCorrectedLapTime` as an input, but that input is the lap time itself plus 0.054 s × lap number, so the answer leaked into the features. The "degradation rate" then measured the fuel term, not tyre wear: 21 of 57 rates were negative (tyres getting *faster* with age) and Softs came out as the slowest-wearing compound. The model now predicts each lap's fuel-corrected time relative to its own stint (so driver pace differences can't fake a trend), drops `StintProgress` (it needed the stint's final length), cross-validates by whole stints, and measures the rate as a slope across the tyre ages actually seen. Negative rates fell to 8 of 58, all near zero or from thin data (Canada's chaotic race, a 3-stint Hungary Soft group), and the median rate now orders correctly: Soft +0.061, Medium +0.051, Hard +0.041 s/lap. SHAP now ranks `TyreLife` as the main driver instead of the leaked lap time. Plan A changed at 16 of 23 circuits, mostly towards starting on the softer tyre (e.g. Bahrain Soft → Hard → Hard). The bug surfaced when Race Analysis compared 2026 measured degradation against the model.
+**A target-leakage bug in the degradation model, found and fixed.** Phase 3 originally predicted `LapTimeSeconds` with `FuelCorrectedLapTime` as an input, but that input is the lap time itself plus 0.054 s × lap number, so the answer leaked into the features. The "degradation rate" then measured the fuel term, not tyre wear: 21 of 57 rates were negative (tyres getting *faster* with age) and Softs came out as the slowest-wearing compound. The model now predicts each lap's fuel-corrected time relative to its own stint (so driver pace differences can't fake a trend), drops `StintProgress` (it needed the stint's final length), cross-validates by whole stints, and measures the rate as a slope across the tyre ages actually seen. Negative rates fell to 8 of 58, all near zero or from thin data (Canada's chaotic race, a 3-stint Hungary Soft group), and the median rate now orders correctly: Soft +0.061, Medium +0.051, Hard +0.041 s/lap. SHAP now ranks `TyreLife` as the main driver instead of the leaked lap time. With Phase 5 re-run on the fixed rates, Plan A changed at 14 of 23 circuits, mostly towards starting on the softer tyre (Bahrain went from Hard → Hard → Soft to Soft → Hard → Hard). Monaco's odd "pit on lap 5, then 73 laps on Hards" plan is gone: it's now Soft for 32 laps, then Hard. The bug surfaced when Race Analysis compared 2026 measured degradation against the model.
 
 **Canada 2024 was a genuine data outlier, and two independent methods agree on it.** 80% of Canada's raw laps were removed during manual cleaning due to heavy Safety Car/VSC disruption. Phase 7's DBSCAN anomaly detection, a completely separate unsupervised method, independently flagged Canada as one of the messiest races of the season, cross-validating the manual cleaning decision.
 
 **Cox hazard models revealed real, statistically significant, circuit-specific risk drivers.** Emilia Romagna and the Netherlands show fuel-corrected pace as the dominant tyre-failure risk factor (hazard ratio ≈ 2.1-2.2, p < 0.01); Austria's dominant factor is track temperature instead.
 
-**Risk scores across circuits show genuine, validated variation.** After fixing two upstream bugs (a Safety Car Probability calculation that was silently returning zero for every circuit, and a Cox model that was failing to fit due to a column-name mismatch), Plan A risk scores span a real range from 0.4 (Monaco, lowest risk) to 30.8 (Great Britain, highest risk), with a spread of Low/Medium/High classifications (13 / 6 / 4) across the season rather than one flat bucket.
+**Risk scores across circuits show genuine, validated variation.** After fixing two upstream bugs (a Safety Car Probability calculation that was silently returning zero for every circuit, and a Cox model that was failing to fit due to a column-name mismatch), Plan A risk scores span a real range from 0.4 (Hungary, lowest risk) to 30.4 (Saudi Arabia, highest risk). Risk levels are cut at the thirds of every plan's score (Low ≤ 4.3, Medium ≤ 14.2), which puts Plan A at 8 Low, 6 Medium and 9 High across the season rather than one flat bucket.
 
 **Model accuracy is context-dependent, and that's disclosed rather than hidden.** The Compound Selector, Strategy Outcome and Undercut classifiers land in the 68-77% accuracy range, meaningfully lower than what's achievable on a deterministic physics problem, because F1 strategy also involves human decisions, competitor behaviour and genuine randomness (teammates, rivals' errors, safety car timing) rather than fixed physical laws. This is treated as the problem's inherent noise ceiling, not a modelling flaw.
 
@@ -395,12 +395,13 @@ The suite runs on saved API responses, so it needs no network.
 
 ### Strategy Lab data (Phases 1-8)
 
-`data/`, `models/` and `circuit_maps/` are gitignored because they're large and fully reproducible. **Run the notebooks in `notebooks/` in order**, Phase 1 to Phase 8: open each one and run all cells top to bottom.
+`data/`, `models/` and `circuit_maps/` are gitignored because they're large and fully reproducible. Run the phases in order, Phase 1 to Phase 8, either as scripts:
 
-Each phase also exists as a plain script in `phases/`. Which version is current:
+```bash
+python phases/phase1_collection.py
+```
 
-- **Phase 3:** the script and the notebook match, and both include the degradation fix.
-- **Phases 1, 2 and 4-8:** the notebooks are newer than the scripts. They carry the October bug fixes; for Phase 5 that's the race-time maths, real Plan B stint lengths and the risk cut-offs. The scripts are being brought up to date, so use the notebooks for these phases until then.
+and then `phase2_engineering.py` through `phase8_circuit_maps.py`, or as the notebooks in `notebooks/` (open each and run all cells). **The scripts and the notebooks match** for every phase. Running Phase 5 both ways gives byte-identical strategies, and Phase 3 gives identical degradation profiles, SHAP values and metrics. If you change one, change the other.
 
 ### Settings (environment variables)
 
@@ -445,9 +446,9 @@ The 2024 São Paulo Grand Prix is excluded from this analysis, since the race wa
 - [x] Fix target leakage in the Phase 3 degradation model
 - [ ] Public deployment of the Dash app (app + watcher)
 - [x] Phase 3 notebook in line with the fixed script
-- [ ] Bring the `phases/` scripts for Phases 1, 2 and 4-8 up to date with their newer notebooks, then re-run Phase 5
+- [x] Bring the `phases/` scripts for Phases 1, 2 and 4-8 up to date with their newer notebooks, and re-run Phase 5
 - [ ] Retrain Strategy Lab on 2025/2026 data (Race Centre already stores 2026 races)
-- [ ] Look at why Phase 5 finds no Plan C at 9 circuits (and Monaco's lap-5 stop)
+- [ ] Look at why Phase 5 finds no Plan C at 9 circuits, and at plans that open with a 5-lap stint (14 of 60 plans; Plan A at Australia, Canada, China, Las Vegas and Saudi Arabia)
 - [ ] Dedicated charts for extra Phase 3-6 outputs (model metrics, hazard ratios, model comparison)
 
 ## Acknowledgments

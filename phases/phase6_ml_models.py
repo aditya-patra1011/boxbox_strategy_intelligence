@@ -15,6 +15,16 @@ Trains 6 puprose-built models:
 4. Pit Window Predictor (Gradient Boosting Regressor)
 5. Circuit Clustering (K-Means)
 6. Undercut Viability Classifier (Logistic Regression)
+
+PHASE 6: ML Models
+
+Trains 6 puprose-built models: 
+1. Stint Length Predictor (Gradient Boosting Regressor)
+2. Compound Selector (Gradient Boosting Classifier)
+3. Strategy Outcome Predictor (Gradient Boosting Classifier)
+4. Pit Window Predictor (Gradient Boosting Regressor)
+5. Circuit Clustering (K-Means)
+6. Undercut Viability Classifier (Logistic Regression)
 """
 
 import pandas as pd
@@ -30,17 +40,20 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, accuracy_score, f1_score
+from sklearn.dummy import DummyClassifier
 
 warnings.filterwarnings('ignore')
 
-"""SETUP"""
+"""SETUP
+"""
 
 BASE = r'C:\Users\adity\Desktop\BoxBox'
 
 os.makedirs(os.path.join(BASE, 'models'), exist_ok=True)
+os.makedirs(os.path.join(BASE, 'data', 'processed'), exist_ok=True)
 os.makedirs(os.path.join(BASE, 'data', 'outputs'), exist_ok=True)
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -50,7 +63,7 @@ log.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 file_handler = logging.FileHandler(
-    r'C:\Users\adity\Desktop\BoxBox\data\outputs\phase1_log.txt'
+    r'C:\Users\adity\Desktop\BoxBox\data\outputs\phase6_log.txt'
 )
 file_handler.setFormatter(formatter)
 
@@ -62,7 +75,8 @@ log.addHandler(stream_handler)
 
 COMPOUND_MAP = {'SOFT': 2, 'MEDIUM': 1, 'HARD': 0}
 
-"""LOAD ALL THE REQUIRED DATA"""
+"""LOAD ALL THE REQUIRED DATA
+"""
 
 def load_data():
     log.info("Loading data...")
@@ -172,11 +186,15 @@ def train_compound_selector(engineered):
     acc = accuracy_score(y_test, preds)
     f1 = f1_score(y_test, preds, average='weighted')
 
+    #Accuracy of always guessing the most common compound
+    baseline = DummyClassifier(strategy='most_frequent').fit(X_train, y_train).score(X_test, y_test)
+
     log.info(f" Trained on {len(X_train)} stints, tested on {len(X_test)}")
     log.info(f" Accuracy: {acc:.3f} | Weighted F1: {f1:.3f}")
+    log.info(f" Baseline accuracy (always majority class): {baseline:.3f}")
 
     return model, {'model': 'CompoundSelector', 'Accuracy': round(acc,3),
-                   'F1': round(f1, 3)}
+                   'F1': round(f1, 3), 'Baseline': round(baseline, 3)}
 
 """MODEL 3 - STRATEGY OUTCOME PREDICTOR
 
@@ -195,7 +213,7 @@ def train_strategy_outcome_predictor(engineered, race_results, feature_store):
     #Merge with race results - race_results uses 'Abbreviation' as driver code
     results = race_results.rename(columns = {'Abbreviation': 'Driver'})
     merged = stops.merge(
-        results[['CircuitName', 'Driver', 'GridPosition', 'PositionChange']],
+        results[['CircuitName', 'Driver', 'GridPosition', 'PositionChange', 'Status']],
         on = ['CircuitName', 'Driver'], how = 'inner'
     )
 
@@ -206,11 +224,19 @@ def train_strategy_outcome_predictor(engineered, race_results, feature_store):
 
     merged = merged.dropna(subset = ['GridPosition', 'PositionChange'])
 
+    '''Keep only drivers who actually finished (or were classified a lap or
+    more down). Retirements create huge fake "losses", and pit-lane starts
+    have GridPosition 0, which breaks PositionChange'''
+    rows_before = len(merged)
+    merged = merged[merged['Status'].astype(str).str.contains('Finished|Lap', na=False)]
+    merged = merged[merged['GridPosition'] > 0]
+    log.info(f" Removed {rows_before - len(merged)} retirements / pit-lane starts")
+
     # Bucketing outcome into 3 classes
     def bucket_outcome(change):
         if change >= 2:
             return 'Gain'
-        elif change <= 2:
+        elif change <= -2:
             return 'Loss'
         else:
             return 'Neutral'
@@ -234,12 +260,16 @@ def train_strategy_outcome_predictor(engineered, race_results, feature_store):
     acc = accuracy_score(y_test, preds)
     f1 = f1_score(y_test, preds, average='weighted')
 
+    #Accuracy of always guessing the most common outcome
+    baseline = DummyClassifier(strategy='most_frequent').fit(X_train, y_train).score(X_test, y_test)
+
     log.info(f" Trained on {len(X_train)} driver-races, tested on {len(X_test)}")
     log.info(f" Accuracy: {acc:.3f} | Weighted F1: {f1:.3f}")
+    log.info(f" Baseline accuracy (always majority class): {baseline:.3f}")
     log.info(f" Outcome distribution:\n{merged['Outcome'].value_counts().to_string()}")
 
     return model, {'model': 'StrategyOutcomePredictor', 'Accuracy': round(acc, 3),
-                   'F1': round(f1, 3)}
+                   'F1': round(f1, 3), 'Baseline': round(baseline, 3)}
 
 """MODEL 4 - PIT WINDOW PREDICTOR
 
@@ -277,7 +307,7 @@ def train_pit_window_predictor(pit_stops, feature_store):
     log.info(f" Trained on {len(X_train)} pit stops, tested on {len(X_test)}")
     log.info(f" MAE: {mae:.2f} laps")
 
-    return model, {'model': 'PitWindowPredictor', 'MAE_laps': {mae, 2}}
+    return model, {'model': 'PitWindowPredictor', 'MAE_laps': round(mae, 2)}
 
 """MODEL 5 - CIRCUIT CLUSTERING (K-MEANS)
 
@@ -288,14 +318,21 @@ def train_circuit_clustering(feature_store):
     log.info("MODEL 5: CIRCUIT CLUSTERING (K-MEANS)")
     log.info("-" * 50)
 
-    cluster_features = [
+    numeric_features = [
         'AvgTrackTemp', 'AvgPitLoss', 'SafetyCarProbability',
-        'AvgStintLength', 'MaxObservedTyreLife',
-        'FastestLapSeconds', 'AvgRaceLapSeconds', 'CircuitTypeEncoded'
+        'AvgStintLength', 'MaxObservedTyreLife', 
+        'FastestLapSeconds', 'AvgRaceLapSeconds'
     ]
 
-    data = feature_store.dropna(subset = cluster_features).copy()
-    X = data[cluster_features]
+    data = feature_store.dropna(subset = numeric_features + ['CircuitType']).copy()
+
+    '''Circuit type is a category (Street, Technical...), not a number,
+    so one-hot encode it instead of using 0-3 as if it had an order'''
+    type_columns = [f'Type_{t}' for t in ['Street', 'Technical', 'Balanced', 'HighSpeed']]
+    type_dummies = pd.get_dummies(data['CircuitType'], prefix='Type').astype(float)
+    type_dummies = type_dummies.reindex(columns=type_columns, fill_value=0.0)
+
+    X = pd.concat([data[numeric_features], type_dummies], axis=1)
 
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
@@ -303,11 +340,14 @@ def train_circuit_clustering(feature_store):
     kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
     data['Cluster'] = kmeans.fit_predict(X_scaled)
 
+    #Remember the exact input columns so the model can be used correctly later
+    kmeans.feature_columns_ = list(X.columns)
+
     log.info(f" Clustered {len(data)} circuits into 4 groups")
     log.info(f"\n{data[['CircuitName', 'Cluster']].sort_values('Cluster').to_string(index = False)}")
 
-    cluster_summary = data.groupby('Cluster')[cluster_features].mean().round(2)
-    log.info(f"\nCluster characterstics:\n{cluster_summary.to_string}")
+    cluster_summary = data.groupby('Cluster')[numeric_features].mean().round(2)
+    log.info(f"\nCluster characterstics:\n{cluster_summary.to_string()}")
 
     return kmeans, scaler, data[['CircuitName', 'Cluster']], {'model': 'Circuitclustering', 'NumClusters': 4, 'Circuits': len(data)}
 
@@ -377,26 +417,35 @@ def train_undercut_classifier(pit_stops, raw_laps, feature_store):
     y = data['Success']
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
 
+    #Fit the scaler on training data only, then apply it to the test data
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.fit_transform(X_test)
+    X_test_scaled = scaler.transform(X_test)
 
-    model = LogisticRegression(random_state=42, max_iter=1000)
+    #class_weight='balanced' because successes are the minority class
+    model = LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced')
     model.fit(X_train_scaled, y_train)
 
     preds = model.predict(X_test_scaled)
     acc = accuracy_score(y_test, preds)
+    f1 = f1_score(y_test, preds)
+
+    #Accuracy of always predicting the most common outcome
+    baseline = DummyClassifier(strategy='most_frequent').fit(X_train, y_train).score(X_test, y_test)
 
     log.info(f" Trained on {len(X_train)} events, tested on {len(X_test)}")
-    log.info(f" Accuracy: {acc:.3f}")
+    log.info(f" Accuracy: {acc:.3f} | F1 (success class): {f1:.3f}")
+    log.info(f" Baseline accuracy (always majority class): {baseline:.3f}")
 
     return model, scaler, {'model': 'UndercutClassifier', 'Accuracy': round(acc, 3),
+                           'F1': round(f1, 3), 'Baseline': round(baseline, 3),
                            'SuccessRate': round(data['Success'].mean(), 3)}
 
-"""MAIN PIPELINE"""
+"""MAIN PIPELINE
+"""
 
 def main():
     log.info(" BOXBOX: PHASE 6 MODELS")
@@ -430,7 +479,8 @@ def main():
     joblib.dump(outcome_model, os.path.join(BASE, 'models', 'strategy_outcome.pkl'))
     joblib.dump(pit_window_model, os.path.join(BASE, 'models', 'pit_window_predictor.pkl'))
     joblib.dump(
-        {'model': kmeans_model, 'scaler': cluster_scaler},
+        {'model': kmeans_model, 'scaler': cluster_scaler,
+        'features': kmeans_model.feature_columns_},
         os.path.join(BASE, 'models', 'circuit_clusters.pkl')
     )
     joblib.dump(
@@ -438,12 +488,12 @@ def main():
         os.path.join(BASE, 'models', 'undercut_classifier.pkl')
     )
 
-    #Save cluster assignments (used directly by dashboard)
+    #Save cluster assignments (used directly by dashboard) 
     cluster_path = os.path.join(BASE, 'data', 'processed', 'circuit_clusters.csv')
     cluster_assignments.to_csv(cluster_path, index=False)
-    log.info(f"{len(cluster_path)} Saved")
+    log.info(f"Saved: {cluster_path} ({len(cluster_assignments)} rows)")
 
-    #Save metrics summary
+    #Save metrics summary 
     metrics_df = pd.DataFrame(all_metrics)
     metrics_path = os.path.join(BASE, 'data', 'outputs', 'phase6_model_metrics.csv')
     metrics_df.to_csv(metrics_path, index=False)
@@ -454,6 +504,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-import sklearn
-print(sklearn.__version__)

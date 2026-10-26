@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 os.chdir(r'C:\Users\adity\Desktop\BoxBox')
 os.makedirs('data/processed', exist_ok=True)
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -178,7 +178,7 @@ def clean_laps(laps):
 
     return df, sc_probability
 
-"""CLEAN PIT STOP DATA
+"""CLEAN PIT STOP DATA 
 
 Removes pit stops with unrealistic durations and calculates average pit loss time per circuit for the optimizer
 """
@@ -211,11 +211,11 @@ def clean_pit_stops(pits):
     (average pit traversal based on typical F1 pit lane lengths)
     This gives us a per-circuit pit loss estimate better than
     the fixed 22-second value we used in Phase 3 before'''
-    df['EstimatedPitLoss'] = df['PitDurationSeconds'] + 17.0
+    df['EstimatedPitLoss'] = df['PitDurationSeconds']
 
     pit_loss_per_circuit = df.groupby('CircuitName').agg(
-        AvgPitLoss = ('EstimatedPitLoss', 'mean'),
-        AvgStationaryTime = ('PitDurationSeconds', 'mean'),
+        AvgPitLoss = ('EstimatedPitLoss', 'median'),
+        AvgPitLaneTime = ('PitDurationSeconds', 'median'),
         TotalStops = ('PitDurationSeconds', 'count')
     ).round(2)
 
@@ -226,7 +226,7 @@ def clean_pit_stops(pits):
 
 """MERGE WEATHER ONTO LAPS
 
-Weather is sampled every few minutes, not every lap, so we will merge it onto lap data by matching the closest timestamp.
+Weather is sampled every few minutes, not every lap, so we will merge it onto lap data by matching the closest timestamp. 
 
 Each lap gets the weather reading that was closest to the time when that lap occurred
 """
@@ -236,8 +236,8 @@ def merge_weather(laps_clean, weather):
     log.info("-" * 50)
 
     weather_cols = ['AirTemp', 'TrackTemp', 'Humidity',
-                    'Windspeed', 'Rainfall', 'CircuitName', 'TimeSeconds']
-
+                    'WindSpeed', 'Rainfall', 'CircuitName', 'TimeSeconds']
+    
     available_cols = [c for c in weather_cols if c in weather.columns]
     weather_subset = weather[available_cols].copy()
 
@@ -259,20 +259,18 @@ def merge_weather(laps_clean, weather):
             continue
 
         '''For each lap we need a timestamp to match against
-        weather. Thats where we use lap number as a proxy,
-        multiply by average lap time to get approximate session
+        weather. Thats where we use lap number as a proxy, 
+        multiply by average lap time to get approximate session 
         time in seconds
-        This is an approximation but good enough for weather
+        This is an approximation but good enough for weather 
         matching since weather changes slowly over a race'''
-        if 'LapTimeSeconds' in lap_group.columns:
-            lap_group['ApproxSessionTime'] = (
-                lap_group['LapNumber'] * lap_group['LapTimeSeconds']
-            )
+        if 'LapEndSeconds' in lap_group.columns:
+            lap_group['ApproxSessionTime'] = lap_group['LapEndSeconds']
         else:
-            lap_group['ApproxSessionTime'] = lap_group['LapNumber'] * 90
-
+            lap_group['ApproxSessionTime'] = lap_group['LapNumber'] * lap_group['LapTimeSeconds']
+            lap_group = lap_group.dropna(subset=['ApproxSessionTime'])
         # Merge using nearest timestamp match
-        # pd.merge_asof matches each lap to the closest weather reading
+        # pd.merge_asof matches each lap to the closest weather reading 
         lap_sorted = lap_group.sort_values('ApproxSessionTime')
         wx_sorted = wx_group.sort_values('TimeSeconds')
 
@@ -294,12 +292,12 @@ def merge_weather(laps_clean, weather):
     log.info(f" Weather merged onto {len(result)} laps")
     log.info(f" Circuits with weather: "
             f"{result['TrackTemp'].notna().sum()} laps have track temp")
-
+    
     return result
 
-"""ENGINEER FEATURES
+"""ENGINEER FEATURES 
 
-Creates all new calculated columns on the cleaned,
+Creates all new calculated columns on the cleaned, 
 weather-merged lap dataset
 """
 
@@ -365,7 +363,7 @@ def engineer_features(df, sc_probability, pit_loss_per_circuit):
         if len(group) < 6:
             group['DegAcceleration'] = False
             return group
-
+        
         midpoint = group['TyreLife'].median()
         first_half = group[group['TyreLife'] <= midpoint]
         second_half = group[group['TyreLife'] > midpoint]
@@ -373,7 +371,7 @@ def engineer_features(df, sc_probability, pit_loss_per_circuit):
         if len(first_half) < 2 or len(second_half) < 2:
             group['DegAcceleration'] = False
             return group
-
+        
         '''Calculate slope (degradation rate) for each half
         using simple rise/run approximation'''
         first_slope = (
@@ -384,7 +382,7 @@ def engineer_features(df, sc_probability, pit_loss_per_circuit):
         second_slope =(
             second_half['LapTimeSeconds'].iloc[-1] -
             second_half['LapTimeSeconds'].iloc[0]
-        ) / max(len(second_half), 1)
+        ) / max(len(second_half), 1) 
 
         #Flag True if seconds half degrades more than 20% faster
         group['DegAcceleration'] = second_slope > first_slope * 1.2
@@ -465,7 +463,7 @@ def build_feature_store(engineered_laps, pit_loss_per_circuit, sc_probability):
                 'Street': 0, 'Technical': 1,
                 'Balanced': 2, 'HighSpeed': 3
                 }.get(CIRCUIT_TYPES.get(circuit, 'Balanced'), 2),
-
+            
             # Average conditions
             'AvgTrackTemp' : circuit_laps['TrackTemp'].mean()
                 if 'TrackTemp' in circuit_laps.columns else np.nan,
@@ -473,7 +471,7 @@ def build_feature_store(engineered_laps, pit_loss_per_circuit, sc_probability):
                 if 'AirTemp' in circuit_laps.columns else np.nan,
             'AvgHumidity' : circuit_laps['Humidity'].mean()
                 if 'Humidity' in circuit_laps.columns else np.nan,
-
+            
             #Race Characterstics
             'TotalRaceLaps' : int(circuit_laps['LapNumber'].max()),
             'SafetyCarProbability': sc_probability.get(circuit, 0),
@@ -497,7 +495,7 @@ def build_feature_store(engineered_laps, pit_loss_per_circuit, sc_probability):
         }
 
         rows.append(row)
-
+    
     feature_store = pd.DataFrame(rows)
 
     log.info(f" Feature store built: {len(feature_store)} circuits")
@@ -508,7 +506,8 @@ def build_feature_store(engineered_laps, pit_loss_per_circuit, sc_probability):
 
     return feature_store
 
-"""MAIN PIPELINE"""
+"""MAIN PIPELINE
+"""
 
 def main():
     log.info(" BOXBOX Phase 2 : Data Cleaning & Feature Engineering")
@@ -531,13 +530,16 @@ def main():
         laps_with_weather, sc_probability, pit_loss_per_circuit
     )
 
-    print(sc_probability)
-    print(sc_probability.get('Canada', 0))
     #Build feature store
     feature_store = build_feature_store(
         engineered, pit_loss_per_circuit, sc_probability
     )
-
+    feature_store['TotalRaceLaps'] = (
+        feature_store['CircuitName']
+        .map(laps.groupby('CircuitName')['LapNumber'].max())
+        .astype(int)
+    )
+    
     #Save outputs
     engineered_path = os.path.join(base_out, 'engineered_laps.csv')
     feature_store_path = os.path.join(base_out, 'feature_store.csv')
@@ -560,10 +562,10 @@ def main():
             df_check = pd.read_csv(path)
             log.info(f" {name}: {len(df_check)} rows | "
                     f"{len(df_check.columns)} cols | {size_mb:.1f} MB")
-
+        
         else:
             log.warning(f" {name}: NOT SAVED")
-
+    
     log.info(f" Total features engineered: 10")
     log.info(f" Circuits in dataset: "
             f"{engineered['CircuitName'].nunique()}")

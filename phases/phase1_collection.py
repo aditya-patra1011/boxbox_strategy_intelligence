@@ -26,7 +26,7 @@ loggiing gives us a proper log file instead of just print statements
 This way if Phase 1 fails partway through, you can read data/raw/collection_log.txt to see exactly what went wrong
 """
 
-logger_name = __name__
+logger_name = __name__  
 log = logging.getLogger(logger_name)
 if log.hasHandlers():
     log.handlers.clear()
@@ -49,7 +49,7 @@ log.addHandler(stream_handler)
 #Enable fastf1 cache so data is stored locally after first download
 fastf1.Cache.enable_cache(r'C:\Users\adity\Desktop\BoxBox\cache')
 
-"""2024 RACE CALENDER
+"""2024 RACE CALENDER 
 
 Each entry is a dict with the event name exactly as FastF1 expects it, and a flag for whether it's a sprint weekend
 
@@ -106,7 +106,7 @@ def load_session(round_number, session_type, year=2024):
 
 """COLLECT LAP DATA
 
-Pulls every lap from every driver from every race.
+Pulls every lap from every driver from every race. 
 
 We keep almost all columns here - in phase 2 we will decide what to drop. The only trnsformation we do is converting LapTime from timedelta to seconds, because timedelta objects can't be stored in a CSV cleanly
 """
@@ -148,8 +148,9 @@ def collect_lap_data():
         laps['IsPitInLap'] = laps['PitInTime'].notna()
         laps['IsPitOutLap'] = laps['PitOutTime'].notna()
 
-        '''Drop the raw timedelta columns that don't
+        '''Drop the raw timedelta columns that don't 
         serialize cleanly to CSV'''
+        laps['LapEndSeconds'] = laps['Time'].dt.total_seconds()
         cols_to_drop = [
             'LapTime', 'PitInTime', 'PitOutTime',
             'Sector1Time', 'Sector2Time', 'Sector3Time',
@@ -162,11 +163,11 @@ def collect_lap_data():
 
         log.info(f" {race['name']}: {len(laps)} laps collected")
         all_laps.append(laps)
-
+    
     if not all_laps:
         log.error("No lap data collected at all. Check internet/FastF1")
         return
-
+    
     #Stack all races into one DataFrame
     full_laps = pd.concat(all_laps, ignore_index=True)
 
@@ -271,7 +272,7 @@ def collect_pit_stop_data():
 
 """COLLECT RACE RESULTS
 
-session.results gives us the dinal classification for each race. We need grid position (where they started) and final position (where they finished) to train the Strategy Outcome model.
+session.results gives us the dinal classification for each race. We need grid position (where they started) and final position (where they finished) to train the Strategy Outcome model. 
 
 We also collect points scored and status (finished/DNF/DSQ)
 """
@@ -289,7 +290,7 @@ def collect_race_results():
         if session is None:
             failed_races.append(race['name'])
             continue
-
+        
         results = session.results.copy()
 
         if results is None or results.empty:
@@ -318,14 +319,14 @@ def collect_race_results():
                 pd.to_numeric(result_df['GridPosition'], errors='coerce') -
                 pd.to_numeric(result_df['Position'], errors='coerce')
             )
-
+        
         log.info(f" {race['name']}: {len(result_df)} driver results collected")
         all_results.append(result_df)
 
     if not all_results:
         log.error("No race results collected")
         return
-
+    
     full_results = pd.concat(all_results, ignore_index=True)
 
     output_path = r'C:\Users\adity\Desktop\BoxBox\data\raw\race_results.csv'
@@ -381,21 +382,21 @@ def collect_weather_data():
     if not all_weather:
         log.error("No weather data collected")
         return
-
+    
     full_weather = pd.concat(all_weather, ignore_index=True)
     output_path = r'C:\Users\adity\Desktop\BoxBox\data\raw\weather.csv'
+    full_weather.to_csv(output_path, index=False)
 
     log.info(f"\nWeather data saved: {output_path}")
     log.info(f"Total Rows: {len(full_weather)}")
     if failed_races:
         log.warning(f"Failed races: {failed_races}")
 
-"""COLLECT TELEMETRY FOR CIRCUIT LAPS
+"""COLLECT TELEMETRY FOR CIRCUIT LAPS 
 
 For each circuit we load one lap of telementry from one driver - we only need the X/Y GPS coordinates to draw the track outline. We pick the fastest qualifier's fastest lap from qualifying (not the race) since that gives the cleanest single lap representation of the circuit.
 
-We load qualifying ('Q') separately for this purpose
-
+We load qualifying ('Q') separately for this purpose 
 """
 
 def collect_telemetry():
@@ -447,16 +448,16 @@ def collect_telemetry():
 
             log.info(f" {race['name']}: {len(telemetry)} telemetry points collected")
             all_telemetry.append(telemetry)
-
+        
         except Exception as e:
             log.error(f" {race['name']}: Telemtry failed - {e}")
             failed_races.append(race['name'])
             continue
-
+    
     if not all_telemetry:
         log.error("No telemetry data collected")
         return
-
+    
     full_telemetry = pd.concat(all_telemetry, ignore_index=True)
 
     output_path = r'C:\Users\adity\Desktop\BoxBox\data\raw\telemetry.csv'
@@ -470,7 +471,7 @@ def collect_telemetry():
 """MAIN PIPELINE
 
 Runs all 5 collectors in sequence. Each one is independent, so if any
-one fails entirely, the others still run and save their own files.
+one fails entirely, the others still run and save their own files. 
 
 At the end, we will acquire 5 csv's and print print a summary of what we saved to have an intel of what we have
 """
