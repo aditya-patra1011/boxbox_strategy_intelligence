@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 
 BASE = Path(os.environ.get("BOXBOX_BASE", Path(__file__).resolve().parent.parent))
-DEFAULT_PATH = BASE / "data" / "race_centre" / "boxbox.sqlite"
+DEFAULT_PATH = Path(os.environ.get("BOXBOX_STORE", BASE / "data" / "race_centre" / "boxbox.sqlite"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS races (
@@ -90,6 +90,10 @@ CREATE TABLE IF NOT EXISTS car_samples (
     session_key INTEGER, driver_number INTEGER, t REAL, x REAL, y REAL,
     speed REAL, throttle REAL, brake REAL, gear INTEGER, rpm REAL,
     PRIMARY KEY (session_key, driver_number, t)
+);
+-- When the watcher (python -m ingest.watch) last ran each kind of job.
+CREATE TABLE IF NOT EXISTS watch_state (
+    job TEXT PRIMARY KEY, last_run_utc TEXT, note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_positions ON positions (session_key, date);
 CREATE INDEX IF NOT EXISTS idx_intervals ON intervals (session_key, date);

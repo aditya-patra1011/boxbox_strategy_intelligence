@@ -6,6 +6,7 @@ import pandas as pd
 from dash import Input, Output, State, callback, dcc, html, no_update
 
 import figures as F
+import live_status
 import race_data as R
 from ui import CONFIG, card, message, page_title
 
@@ -38,6 +39,7 @@ def layout(circuit=None, **_):
                for _, r in done.iloc[::-1].iterrows()]
     return html.Div([
         page_title("Race Centre", f"{season} season · the race weekend, the latest results and the season so far."),
+        *live_status.watch("home", (R.latest_session() or {}).get("session_key")),
         hero(focus.iloc[0], at) if not focus.empty else message(f"The {season} season is over."),
         card("Race results", "Gap to the winner, interval to the car ahead, places gained from the grid and the tyre "
              "each driver finished on.", [

@@ -53,3 +53,17 @@ class FakeSession:
 def client():
     from ingest.jolpica import Client
     return Client(session=FakeSession(), min_interval=0, sleep=lambda s: None)
+
+
+@pytest.fixture
+def store(client, tmp_path, monkeypatch):
+    """A store filled from the saved Jolpica responses, wired into race_data."""
+    import race_data
+    from ingest.season import ingest_season
+    from ingest.store import connect
+    path = tmp_path / "store.sqlite"
+    conn = connect(path)
+    ingest_season(client, conn, 2026, log=lambda *_: None)
+    conn.close()
+    monkeypatch.setattr(race_data, "STORE", path)
+    return path

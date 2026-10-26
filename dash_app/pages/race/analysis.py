@@ -6,6 +6,7 @@ from dash import Input, Output, State, callback, dcc, html
 
 import data
 import figures as F
+import live_status
 import race_data as R
 from ui import CONFIG, card, kpi, message, page_title
 
@@ -78,6 +79,8 @@ def layout(**_):
     return html.Div([
         page_title(f"Race Analysis · {title} {session['season'] or ''}".strip(),
                    "How the tyres and the pace really behaved, measured from every clean lap of the latest race."),
+        live_status.banner(session["season"], showing=f"the {title} analysis"),
+        *live_status.watch("analysis", key),
         dbc.Row(kpis, className="g-3 mb-4"),
         dbc.Row([
             dbc.Col(card("Tyre degradation", "Each dot is a clean lap, against its own stint's average (fuel-corrected). "

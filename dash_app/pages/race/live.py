@@ -5,6 +5,7 @@ import dash_bootstrap_components as dbc
 from dash import ClientsideFunction, Input, Output, Patch, State, callback, clientside_callback, dcc, html
 
 import figures as F
+import live_status
 import race_data as R
 from ui import CONFIG, card, message, page_title
 
@@ -63,6 +64,8 @@ def layout(**_):
         page_title(f"Race Live · {title} {session['season'] or ''}".strip(),
                    "A replay of the latest race, from OpenF1's free data (it appears about 30 minutes after the "
                    "chequered flag). Press play, pick a speed, or drag to any lap."),
+        live_status.banner(session["season"], showing=f"the {title} replay"),
+        *live_status.watch("live", key),
         html.Div(neutral_chips(periods), className="bb-neutral-chips"),
         html.Div([
             html.Button("▶ Play", id="rl-play", n_clicks=0, className="bb-btn"),
