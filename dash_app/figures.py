@@ -163,3 +163,68 @@ def compound_usage(counts):
                         text=counts["Count"], textposition="outside", cliponaxis=False))
     fig.update_yaxes(title="Total Laps")
     return style(fig)
+
+# RACE CENTRE · STANDINGS
+# Approximate team colours (plain hex values, no logos). Colour is never the only cue:
+# highlighted lines are also labelled at their end, and the table sits beside the chart.
+TEAM_COLORS = {"mercedes": "#27F4D2", "ferrari": "#E8002D", "mclaren": "#FF8000", "red_bull": "#3671C6",
+               "rb": "#6692FF", "alpine": "#FF87BC", "haas": "#B6BABD", "audi": "#52E252",
+               "williams": "#64C4FF", "aston_martin": "#229971", "cadillac": "#C9B037"}
+MUTED = "#3A3D46"
+LABEL_INK = "#C9CBD2"
+
+
+def _spread(values, gap):
+    """Nudge sorted label positions apart so end labels never sit on top of each other."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    out = list(values)
+    for a, b in zip(order, order[1:]):
+        out[b] = max(out[b], out[a] + gap)
+    return out
+
+
+def standings_lines(df, key, label, highlight, metric="points", race_names=None):
+    """Points (or championship position) after every round. Highlighted entries get their
+    team colour and an end label; everyone else is a thin grey line for context."""
+    if df.empty:
+        return empty("No standings yet. Run: python -m ingest")
+    race_names = race_names or {}
+    fig = go.Figure()
+    rest = [k for k in df[key].unique() if k not in highlight]
+    teams_drawn, ends = set(), []
+    for k in rest + [h for h in highlight if h in set(df[key])]:
+        d = df[df[key] == k].sort_values("round")
+        on = k in highlight
+        team = d["constructor_id"].iloc[-1]
+        dash = "dash" if on and team in teams_drawn else "solid"     # second highlighted teammate
+        if on:
+            teams_drawn.add(team)
+        name = d[label].iloc[-1]
+        fig.add_trace(go.Scatter(
+            x=d["round"], y=d[metric], mode="lines", name=name, showlegend=on,
+            line=dict(color=TEAM_COLORS.get(team, "#9A9CA5") if on else MUTED, width=2.5 if on else 1, dash=dash),
+            customdata=list(zip(d["round"].map(race_names).fillna(""), d["position_text"], d["points"])),
+            hovertemplate="<b>%{fullData.name}</b><br>R%{x} · %{customdata[0]}"
+                          "<br>%{customdata[2]:.0f} pts · P%{customdata[1]}<extra></extra>"))
+        if on:
+            ends.append((name, d["round"].iloc[-1], d[metric].iloc[-1]))
+
+    span = (df[metric].max() - df[metric].min()) or 1
+    reverse = metric == "position"
+    ys = _spread([-y if reverse else y for _, _, y in ends], span * 0.04)
+    for (name, x, _), y in zip(ends, ys):
+        fig.add_annotation(x=x, y=-y if reverse else y, text=name, showarrow=False, xanchor="left", xshift=8,
+                           font=dict(size=12, color=LABEL_INK))
+
+    rounds = sorted(df["round"].unique())
+    fig.update_xaxes(title="Round", tickvals=rounds, ticktext=[f"R{r}" for r in rounds], range=[0.7, rounds[-1] + 0.9])
+    top = df[metric].max()
+    if reverse:
+        fig.update_yaxes(title="Championship position", range=[top + 0.7, 0.3], tickvals=[1, 5, 10, 15, 20])
+    else:
+        fig.update_yaxes(title="Points", range=[-top * 0.03, top * 1.06])
+    style(fig, margin=dict(l=10, r=10, t=40, b=10), hovermode="closest")
+    # No animated transition: with one, switching points <-> position keeps the old y-axis and
+    # Plotly replays queued figures. The traces change shape completely, so there's nothing to animate.
+    fig.layout.transition = None
+    return fig.update_layout(legend=dict(orientation="h", y=1.08, x=0))
