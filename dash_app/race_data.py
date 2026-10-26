@@ -252,9 +252,25 @@ def team_stats():
 
 
 def team_lineup(season):
-    """Each team's drivers at the latest completed round, with their racing numbers."""
-    res = results(season)
-    if res.empty:
-        return res
-    last = res[res["round"] == res["round"].max()]
-    return last[["constructor_id", "team", "driver_id", "number", "code", "given_name", "family_name"]]         .sort_values(["constructor_id", "number"]).reset_index(drop=True)
+    """Each team's drivers at the latest completed round: racing number, nationality, date of birth,
+    and where they stand in the championship after that round."""
+    return query("""
+        SELECT r.constructor_id, c.name AS team, r.driver_id, r.number, d.code, d.given_name, d.family_name,
+               d.nationality, d.date_of_birth, s.position AS champ_position, s.points AS champ_points,
+               s.wins AS season_wins
+        FROM results r
+        JOIN drivers d USING (driver_id)
+        JOIN constructors c USING (constructor_id)
+        LEFT JOIN driver_standings s ON s.season = r.season AND s.round = r.round AND s.driver_id = r.driver_id
+        WHERE r.season = ? AND r.round = (SELECT MAX(round) FROM results WHERE season = ?)
+        ORDER BY r.constructor_id, s.position""", (season, season))
+
+
+def initials(given, family):
+    """"Andrea Kimi", "Antonelli" -> "AA": first given name and family name."""
+    return (given.split()[0][:1] + family.replace("-", " ").split()[-1][:1]).upper()
+
+
+def age(date_of_birth, at=None):
+    born, at = datetime.fromisoformat(date_of_birth).date(), (at or now()).date()
+    return at.year - born.year - ((at.month, at.day) < (born.month, born.day))

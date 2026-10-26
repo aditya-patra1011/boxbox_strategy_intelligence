@@ -729,3 +729,215 @@ body {
 .bb-link-btn:hover {
   color: #fff;
 }
+
+/* Race Centre · Teams */
+.bb-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.bb-team-card {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: linear-gradient(145deg, #1b1c21 0%, #151619 100%);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--team);
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.bb-team-card:hover {
+  transform: translateY(-3px);
+  border-color: #3a3b42;
+  border-top-color: var(--team);
+}
+.bb-team-card:focus-visible {
+  outline: 2px solid var(--team);
+  outline-offset: 2px;
+}
+.bb-team-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.bb-team-name {
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+}
+.bb-team-pos {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.bb-team-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.bb-team-stat {
+  background: #121317;
+  border: 1px solid #23242a;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.bb-team-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.1;
+}
+.bb-team-stat-label {
+  font-size: 10.5px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.bb-team-drivers {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #23242a;
+}
+.bb-team-driver {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: #e8e8e8;
+}
+.bb-team-num {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--team);
+  border: 1px solid var(--team);
+  border-radius: 6px;
+  padding: 1px 0;
+}
+.bb-driver-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.bb-driver-card {
+  position: relative;
+  overflow: hidden;
+  background: #121317;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--team);
+  border-radius: 14px;
+  padding: 18px 20px;
+  min-height: 170px;
+}
+.bb-dc-number {
+  position: absolute;
+  right: 14px;
+  top: -6px;
+  font-size: 96px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--team);
+  opacity: 0.9;
+  letter-spacing: -3px;
+}
+.bb-dc-initials {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid var(--team);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.bb-dc-given {
+  font-size: 14px;
+  color: var(--muted);
+}
+.bb-dc-family {
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.4px;
+  margin-bottom: 4px;
+}
+.bb-dc-standing {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8e8e8;
+}
+.bb-fact-text {
+  font-size: 14px;
+  color: #e8e8e8;
+}
+.bb-lineage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bb-lineage-step {
+  font-size: 12.5px;
+  background: #121317;
+  border: 1px solid #23242a;
+  border-radius: 8px;
+  padding: 4px 9px;
+  color: #c9cad1;
+}
+.bb-timeline {
+  position: relative;
+  padding-left: 22px;
+}
+.bb-timeline::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: #2a2b30;
+}
+.bb-tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 10px;
+  padding-bottom: 16px;
+}
+.bb-tl-item::before {
+  content: "";
+  position: absolute;
+  left: -21px;
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--team);
+  border: 2px solid #141519;
+}
+.bb-tl-year {
+  font-weight: 800;
+  color: #fff;
+}
+.bb-tl-title {
+  font-weight: 700;
+  color: #e8e8e8;
+}
+.bb-tl-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
