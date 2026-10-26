@@ -50,10 +50,13 @@ log.addHandler(stream_handler)
 """CONFIGURATION
 """
 
-MIN_STINT_LENGTH = 5
+MIN_STINT_LENGTH = 5            #The shortest stint allowed anywhere
+OPENING_STINT_PERCENTILE = 0.1  #Per circuit: stints can't be shorter than 90% of 2024's real opening stints
 EXTRAPOLATION_BUFFER = 5
 TWO_STOP_STEP = 2
+THREE_STOP_STEP = 3             #Coarser grid: three stops multiply the combinations
 DEFAULT_PIT_LOSS = 22.0
+FUEL_EFFECT_PER_LAP = 0.054     #Same as Phase 2: s/lap gained as fuel burns
 
 """LOADING ALL PHASE 3/4 OUTPUTS
 """
@@ -69,19 +72,36 @@ def load_all_data():
 
     engineered_laps = pd.read_csv(os.path.join(BASE, 'data', 'processed', 'engineered_laps.csv'))
 
+    #Raw laps keep lap 1 and the pit laps, so real stint lengths can be counted in full
+    raw_laps = pd.read_csv(os.path.join(BASE, 'data', 'raw', 'raw_laps.csv'),
+                           usecols=['CircuitName', 'Driver', 'Stint', 'Compound', 'LapNumber'])
+
     log.info(f" degradation_profiles: {len(degradation_df)} rows")
     log.info(f" feature_store: {len(feature_store)} rows")
     log.info(f" cox_hazard_ratios: {len(hazard_df)} rows")
-    log.info(f"engineered_laps: {len(engineered_laps)} rows")
+    log.info(f" engineered_laps: {len(engineered_laps)} rows")
+    log.info(f" raw_laps: {len(raw_laps)} rows")
 
-    return degradation_df, feature_store, hazard_df, engineered_laps
+    return degradation_df, feature_store, hazard_df, engineered_laps, raw_laps
 
 """BUILD LOOKUP DICTIONARIES
 
 Converts DataFrames into fast dictionary lookups so the simulation loops below don't repeatedly filter DataFrames
 """
 
-def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps):
+def min_stint_by_circuit(raw_laps):
+    '''Shortest stint the optimizer may plan at each circuit: the 10th percentile of the
+    opening stints teams really ran there in 2024, never below MIN_STINT_LENGTH.
+    Opening stints that went the whole race (no stop) are left out.'''
+    dry = raw_laps[raw_laps['Compound'].isin(['SOFT', 'MEDIUM', 'HARD'])]
+    stints = dry.groupby(['CircuitName', 'Driver', 'Stint'])['LapNumber'].agg(['min', 'max', 'size'])
+    race_laps = dry.groupby('CircuitName')['LapNumber'].max()
+    stints = stints.join(race_laps.rename('race'), on='CircuitName')
+    opening = stints[(stints['min'] == 1) & (stints['max'] < stints['race'])]
+    floor = opening.groupby('CircuitName')['size'].quantile(OPENING_STINT_PERCENTILE).round()
+    return {c: max(MIN_STINT_LENGTH, int(v)) for c, v in floor.items()}
+
+def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps, raw_laps):
     log.info("BUILDING LOOKUP STRUCTURES...")
 
     #degradation_profiles -> {circuit: {compound: {rate, avg_lap_time, base_lap_time, max_tyre_life}}}
@@ -93,22 +113,25 @@ def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps):
         #A negative rate would make the tyre "improve" with age, so clamp at 0
         rate = max(row['DegradationRate'], 0.0)
 
+        '''Fresh-tyre pace: the fuel-corrected average lap (so a compound run late on a
+        light car doesn't look faster than it is) minus the average wear over a stint'''
+        pace = row['AvgFuelCorrectedLapTime'] if 'AvgFuelCorrectedLapTime' in row else row['AvgLapTime']
         deg_lookup.setdefault(circuit, {})[compound] = {
             'degradation_rate': rate,
             'avg_lap_time': row['AvgLapTime'],
-            #AvgLapTime is the average over a typical stint, so remove the
-            #average wear to get the lap time of a fresh tyre (age 0)
-            'base_lap_time': row['AvgLapTime'] - rate * row['AvgTyreLife'],
+            'base_lap_time': pace - rate * row['AvgTyreLife'],
             'max_tyre_life': row['AvgTyreLife'] * 2 #Roughly safety ceiling
         }
 
-    # feature_store -> {circuit: {pit_loss, sc_probability, total_laps}}
+    # feature_store -> {circuit: {pit_loss, sc_probability, total_laps, min_stint}}
+    min_stint = min_stint_by_circuit(raw_laps)
     circuit_info = {}
     for _, row in feature_store.iterrows():
         circuit_info[row['CircuitName']] = {
             'pit_loss': row['AvgPitLoss'] if pd.notna(row['AvgPitLoss']) else DEFAULT_PIT_LOSS,
             'sc_probability': row['SafetyCarProbability'],
-            'total_laps': int(row['TotalRaceLaps'])
+            'total_laps': int(row['TotalRaceLaps']),
+            'min_stint': min_stint.get(row['CircuitName'], MIN_STINT_LENGTH)
         }
 
     # cox_hazard -> {circuit: {covariate: hazard_ratio}}
@@ -134,8 +157,8 @@ def stint_time(base_lap_time, degradation_rate, stint_length):
     total += degradation_rate * (stint_length * (stint_length + 1) / 2)
     return total
 
-def is_valid_stint(profile, stint_length):
-    if stint_length < MIN_STINT_LENGTH:
+def is_valid_stint(profile, stint_length, min_stint=MIN_STINT_LENGTH):
+    if stint_length < min_stint:
         return False
     max_allowed = profile['max_tyre_life'] + EXTRAPOLATION_BUFFER
     if stint_length > max_allowed:
@@ -175,66 +198,84 @@ def calculate_risk_score(circuit, strategy, deg_profiles, hazard_lookup, sc_prob
 """STRATEGY SIMULATION
 """
 
-def simulate_strategy(circuit, strategy, deg_profiles, pit_loss):
+def simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint=MIN_STINT_LENGTH):
     total_time = 0
     num_stops = len(strategy) - 1
 
     for compound, stint_length in strategy:
         profile = deg_profiles.get(compound)
-        if profile is None: 
+        if profile is None:
             return None
-        if not is_valid_stint(profile, stint_length):
+        if not is_valid_stint(profile, stint_length, min_stint):
             return None
         total_time += stint_time(
             profile['base_lap_time'], profile['degradation_rate'], stint_length
         )
     total_time += num_stops * pit_loss
+
+    '''Pace is fuel-corrected, so take the fuel effect back out: lap L of the race is
+    FUEL_EFFECT_PER_LAP * L faster. It's the same for every strategy over the same
+    distance, so it never changes which plan wins, only the predicted race time'''
+    race_laps = sum(length for _, length in strategy)
+    total_time -= FUEL_EFFECT_PER_LAP * race_laps * (race_laps + 1) / 2
     return total_time
 
 """FIND ALL VALID STRATEGIES FOR A CIRCUIT
 """
 
 def generate_strategies(circuit, deg_lookup, circuit_info):
+    '''Every valid 1-, 2- and 3-stop strategy, as {stops: [{strategy, total_time}, ...]}.
+    Stints are at least the circuit's min_stint, and every strategy uses 2+ compounds.'''
     if circuit not in circuit_info or circuit not in deg_lookup:
-        return [], [], None
+        return {}, None
 
     total_laps = circuit_info[circuit]['total_laps']
     pit_loss = circuit_info[circuit]['pit_loss']
+    min_stint = circuit_info[circuit]['min_stint']
     deg_profiles = deg_lookup[circuit]
     available_compounds = list(deg_profiles.keys())
 
-    one_stop_results = []
-    two_stop_results = []
+    results = {1: [], 2: [], 3: []}
+
+    def add(stops, strategy):
+        if len({c for c, _ in strategy}) < 2:           #must use at least two compounds
+            return
+        total_time = simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint)
+        if total_time is not None:
+            results[stops].append({'strategy': strategy, 'total_time': total_time})
 
     #1-STOP
-    for s1 in range(MIN_STINT_LENGTH, total_laps - MIN_STINT_LENGTH + 1):
+    for s1 in range(min_stint, total_laps - min_stint + 1):
         s2 = total_laps - s1
         for c1 in available_compounds:
             for c2 in available_compounds:
-                if c1 == c2:
-                    continue
-                strategy = [(c1,s1), (c2,s2)]
-                total_time = simulate_strategy(circuit, strategy, deg_profiles, pit_loss)
-                if total_time is not None:
-                    one_stop_results.append({'strategy': strategy, 'total_time': total_time})
+                add(1, [(c1, s1), (c2, s2)])
 
     #2-STOP
-    for s1 in range(MIN_STINT_LENGTH, total_laps - 2 * MIN_STINT_LENGTH + 1, TWO_STOP_STEP):
-        for s2 in range(MIN_STINT_LENGTH, total_laps - s1 - MIN_STINT_LENGTH + 1, TWO_STOP_STEP):
+    for s1 in range(min_stint, total_laps - 2 * min_stint + 1, TWO_STOP_STEP):
+        for s2 in range(min_stint, total_laps - s1 - min_stint + 1, TWO_STOP_STEP):
             s3 = total_laps - s1 - s2
-            if s3 < MIN_STINT_LENGTH:
+            if s3 < min_stint:
                 continue
             for c1 in available_compounds:
                 for c2 in available_compounds:
                     for c3 in available_compounds:
-                        if len({c1, c2, c3}) < 2:
-                            continue
-                        strategy = [(c1, s1), (c2,s2), (c3,s3)]
-                        total_time = simulate_strategy(circuit, strategy, deg_profiles, pit_loss)
-                        if total_time is not None:
-                            two_stop_results.append({'strategy': strategy, 'total_time': total_time})
+                        add(2, [(c1, s1), (c2, s2), (c3, s3)])
 
-    return one_stop_results, two_stop_results, deg_profiles
+    #3-STOP
+    for s1 in range(min_stint, total_laps - 3 * min_stint + 1, THREE_STOP_STEP):
+        for s2 in range(min_stint, total_laps - s1 - 2 * min_stint + 1, THREE_STOP_STEP):
+            for s3 in range(min_stint, total_laps - s1 - s2 - min_stint + 1, THREE_STOP_STEP):
+                s4 = total_laps - s1 - s2 - s3
+                if s4 < min_stint:
+                    continue
+                for c1 in available_compounds:
+                    for c2 in available_compounds:
+                        for c3 in available_compounds:
+                            for c4 in available_compounds:
+                                add(3, [(c1, s1), (c2, s2), (c3, s3), (c4, s4)])
+
+    return results, deg_profiles
 
 """FIND REAL-WORLD MOST COMMON STRATEGY(for Plan B)
 
@@ -301,25 +342,29 @@ def find_real_world_strategy(circuit, engineered_laps):
 """
 
 def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps):
-    one_stop, two_stop, deg_profiles = generate_strategies(circuit, deg_look, circuit_info)
+    by_stops, deg_profiles = generate_strategies(circuit, deg_look, circuit_info)
+    if not any(by_stops.values()) and circuit_info.get(circuit, {}).get('min_stint', MIN_STINT_LENGTH) > MIN_STINT_LENGTH:
+        '''The circuit's floor can rule out every strategy (Great Britain 2024 was wet, so
+        its few dry opening stints were long). Fall back to the general minimum'''
+        log.warning(f" {circuit}: nothing fits with a {circuit_info[circuit]['min_stint']}-lap minimum stint, "
+                    f"retrying with {MIN_STINT_LENGTH}")
+        circuit_info[circuit]['min_stint'] = MIN_STINT_LENGTH
+        by_stops, deg_profiles = generate_strategies(circuit, deg_look, circuit_info)
+    best = {stops: min(r, key=lambda x: x['total_time']) for stops, r in by_stops.items() if r}
 
-    if not one_stop and not two_stop:
+    if not best:
         return None
 
     sc_probability = circuit_info[circuit]['sc_probability']
 
     #PLAN-A: Mathematically optimal overall
-    all_results = one_stop + two_stop
-    plan_a = min(all_results, key=lambda x: x['total_time'])
+    plan_a = min(best.values(), key=lambda x: x['total_time'])
 
-    #PLAN-C: best of the opposite stop count
+    '''PLAN-C: the fastest strategy with a different number of stops. Where no
+    one-stop fits the tyre life seen in 2024, that is usually a three-stop'''
     plan_a_stops = len(plan_a['strategy']) - 1
-    if plan_a_stops == 1 and two_stop:
-        plan_c = min(two_stop, key=lambda x: x['total_time'])
-    elif plan_a_stops == 2 and one_stop:
-        plan_c = min(one_stop, key=lambda x: x['total_time'])
-    else:
-        plan_c = None
+    others = [plan for stops, plan in best.items() if stops != plan_a_stops]
+    plan_c = min(others, key=lambda x: x['total_time']) if others else None
 
     #PLAN-B: Most common real-world strategy
     real_world = find_real_world_strategy(circuit, engineered_laps)
@@ -376,10 +421,12 @@ def main():
     log.info("BOXBOX - Phase 5: Strategy Optimization Engine")
     log.info('-' * 50)
 
-    degradation_df, feature_store, hazard_df, engineered_laps = load_all_data()
+    degradation_df, feature_store, hazard_df, engineered_laps, raw_laps = load_all_data()
     deg_lookup, circuit_info, hazard_lookup = build_lookups(
-        degradation_df, feature_store, hazard_df, engineered_laps
+        degradation_df, feature_store, hazard_df, engineered_laps, raw_laps
     )
+    log.info(" Shortest stint allowed per circuit: "
+             + ", ".join(f"{c} {info['min_stint']}" for c, info in sorted(circuit_info.items())))
 
     all_plans = []
     circuits = sorted(circuit_info.keys())
@@ -429,11 +476,12 @@ def main():
     log.info("\n" + "-" * 50)
     log.info(" Phase 5 Summary")
     log.info("-" * 50)
-    log.info(f"\nCircuits with full plan A/B/C: "
-            f"{plans_df['CircuitName'].nunique()}")
-    log.info(f"\nRisk level breakdown (Plan a only):")
+    plans_per_circuit = plans_df.groupby('CircuitName')['PlanLabel'].nunique()
+    log.info(f"\nCircuits with plans: {len(plans_per_circuit)}, "
+            f"with all of A/B/C: {int((plans_per_circuit == 3).sum())}")
+    log.info(f"\nRisk level breakdown (Plan A only):")
     log.info(optimal_df['RiskLevel'].value_counts().to_string())
-    log.info(f"\nStop count breakdown(Plan A only:)")
+    log.info(f"\nStop count breakdown (Plan A only):")
     log.info(optimal_df['NumStops'].value_counts().to_string())
 
 
