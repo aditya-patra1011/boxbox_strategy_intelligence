@@ -75,3 +75,37 @@ def constructor_standings(season):
 def last_updated():
     df = query("SELECT run_utc FROM ingest_log ORDER BY run_utc DESC LIMIT 1")
     return df["run_utc"].iloc[0] if not df.empty else None
+
+
+# ── standings shaping (pure functions on the frames above) ──
+
+# 2026 points: race win 25, sprint win 8 (no fastest-lap point since 2025).
+# A team can take the top two places, so its maximum per event is P1 + P2.
+MAX_POINTS = {"drivers": {"race": 25, "sprint": 8}, "constructors": {"race": 25 + 18, "sprint": 8 + 7}}
+
+
+def latest_table(standings, key):
+    """Standings after the latest round, with gap to the leader and places gained since the round before."""
+    if standings.empty:
+        return standings
+    last = standings["round"].max()
+    now = standings[standings["round"] == last].copy()
+    before = standings[standings["round"] == last - 1].set_index(key)["position"]
+    now["change"] = (now[key].map(before) - now["position"]).fillna(0).astype(int)   # + = places gained
+    now["gap"] = now["points"].max() - now["points"]
+    return now.sort_values(["position", "points"], ascending=[True, False], na_position="last")
+
+
+def points_left(races_df, completed, kind):
+    """Most points one driver (or team) can still score in the races after the last completed round."""
+    future = races_df[races_df["round"] > max(completed, default=0)]
+    sprints = int(future["sprint_utc"].notna().sum())
+    m = MAX_POINTS[kind]
+    return len(future) * m["race"] + sprints * m["sprint"]
+
+
+def contenders(table, left):
+    """Everyone who can still mathematically reach the leader's total."""
+    if table.empty:
+        return table
+    return table[table["points"] + left >= table["points"].max()]

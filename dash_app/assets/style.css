@@ -502,3 +502,76 @@ body {
     text-align: center;
   }
 }
+
+/* Race Centre tables (Standings) */
+.bb-ctl-grow {
+  flex: 1;
+  min-width: 260px;
+}
+.bb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.bb-table th {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.bb-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid #1f2025;
+  white-space: nowrap;
+}
+.bb-table tbody tr:hover {
+  background: #1d1e24;
+}
+.bb-table .bb-row-on td {
+  background: rgba(255, 255, 255, 0.03);
+}
+.bb-pos {
+  font-weight: 800;
+  width: 34px;
+}
+.bb-pts {
+  font-weight: 800;
+  color: #fff;
+}
+.bb-muted {
+  color: var(--muted);
+}
+.bb-up {
+  color: #00e676;
+  font-size: 12px;
+}
+.bb-down {
+  color: #ff4d6d;
+  font-size: 12px;
+}
+.bb-flat {
+  color: #55575f;
+  font-size: 12px;
+}
+.bb-swatch {
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  margin-right: 10px;
+  vertical-align: -3px;
+}
+.bb-table-wrap {
+  overflow-x: auto;
+}
+.bb-cell-name {
+  display: flex;
+  align-items: center;
+}
+.bb-cell-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
