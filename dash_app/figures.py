@@ -306,3 +306,105 @@ def season_heatmap(pos, labels, names, race_names):
     fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", height=28 * len(y) + 60, clickmode="event")
     fig.layout.transition = None
     return fig
+
+
+# RACE CENTRE · RACE LIVE
+COMPOUND_COLORS.update({"INTERMEDIATE": "#39B54A", "WET": "#1E88E5"})
+# Amber family for cautions, red for a stoppage; drawn as bands behind the data.
+NEUTRAL_COLORS = {"SC": "rgba(255, 179, 0, 0.22)", "VSC": "rgba(255, 213, 79, 0.13)", "RED": "rgba(232, 0, 45, 0.25)"}
+NEUTRAL_INK = {"SC": "#FFB300", "VSC": "#FFD54F", "RED": "#FF4D6D"}
+
+
+def _lap_marker(lap):
+    """Shape 0 of the lap-based charts: the replay's current lap (moved with a Patch)."""
+    return dict(type="line", x0=lap, x1=lap, yref="paper", y0=0, y1=1, line=dict(color="#FFFFFF", width=1.5, dash="dot"))
+
+
+def _neutral_bands(periods):
+    shapes, notes = [], []
+    for p in periods.itertuples():
+        shapes.append(dict(type="rect", x0=p.start_lap - 1, x1=p.end_lap, yref="paper", y0=0, y1=1,
+                           fillcolor=NEUTRAL_COLORS[p.kind], line=dict(width=0), layer="below"))
+        notes.append(dict(x=(p.start_lap - 1 + p.end_lap) / 2, y=1.0, yref="paper", yanchor="bottom", showarrow=False,
+                          text=p.kind, font=dict(size=11, color=NEUTRAL_INK[p.kind])))
+    return shapes, notes
+
+
+def stint_chart(stints, order, codes, periods, total_laps, lap=0):
+    """Each driver's tyre stints as bars along the race, Safety Car / VSC / red-flag laps shaded."""
+    if stints.empty:
+        return empty("No stint data for this session")
+    fig = go.Figure()
+    y = [codes.get(n, str(n)) for n in order]
+    for compound in ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"]:
+        s = stints[stints["compound"] == compound]
+        if s.empty:
+            continue
+        end = s["lap_end"].fillna(total_laps)
+        fig.add_trace(go.Bar(
+            y=[codes.get(n, str(n)) for n in s["driver_number"]], x=end - s["lap_start"] + 1, base=s["lap_start"] - 1,
+            orientation="h", name=compound.title(), marker=dict(color=COMPOUND_COLORS[compound], line=dict(color="#0E1014", width=2)),
+            customdata=list(zip(s["lap_start"], end, s["tyre_age_at_start"].fillna(0))),
+            hovertemplate="<b>%{y}</b> · " + compound.title() + "<br>Laps %{customdata[0]}–%{customdata[1]:.0f}"
+                          "<br>Tyre age at start: %{customdata[2]:.0f} laps<extra></extra>"))
+    shapes, notes = _neutral_bands(periods)
+    fig.update_layout(barmode="overlay", shapes=[_lap_marker(lap)] + shapes, annotations=notes, bargap=0.25)
+    fig.update_yaxes(categoryorder="array", categoryarray=y, autorange="reversed", showgrid=False)
+    fig.update_xaxes(title="Lap", range=[0, total_laps + 0.5])
+    style(fig, margin=dict(l=10, r=10, t=36, b=10))
+    fig.update_layout(legend=dict(orientation="h", y=1.08, x=1, xanchor="right"), height=24 * len(y) + 110)
+    fig.layout.transition = None
+    return fig
+
+
+def lap_chart(by_lap, codes, colours, highlight, periods, total_laps, lap=0):
+    """Race position at the end of every lap; highlighted drivers in team colour, the rest grey."""
+    if by_lap.empty:
+        return empty("No position data for this session")
+    fig = go.Figure()
+    drivers = list(by_lap["driver_number"].unique())
+    teams_drawn, ends = set(), []
+    for n in [d for d in drivers if d not in highlight] + [d for d in highlight if d in drivers]:
+        d = by_lap[by_lap["driver_number"] == n].sort_values("lap_number")
+        on = n in highlight
+        colour = colours.get(n, "#9A9CA5")
+        dash = "dash" if on and colour in teams_drawn else "solid"
+        if on:
+            teams_drawn.add(colour)
+            ends.append((codes.get(n, str(n)), d["lap_number"].iloc[-1], d["position"].iloc[-1]))
+        fig.add_trace(go.Scatter(x=d["lap_number"], y=d["position"], mode="lines", name=codes.get(n, str(n)),
+                                 showlegend=on, line=dict(color=colour if on else MUTED, width=2.5 if on else 1, dash=dash),
+                                 hovertemplate="<b>%{fullData.name}</b> · lap %{x}: P%{y}<extra></extra>"))
+    for name, x, y in ends:
+        fig.add_annotation(x=x, y=y, text=name, showarrow=False, xanchor="left", xshift=6, font=dict(size=11, color=LABEL_INK))
+    shapes, notes = _neutral_bands(periods)
+    fig.update_layout(shapes=[_lap_marker(lap)] + shapes, annotations=list(fig.layout.annotations) + notes)
+    n_pos = int(by_lap["position"].max())
+    fig.update_yaxes(title="Position", range=[n_pos + 0.7, 0.3], tickvals=[1, 5, 10, 15, 20])
+    fig.update_xaxes(title="Lap", range=[0.5, total_laps + 3])
+    style(fig, margin=dict(l=10, r=10, t=36, b=10), hovermode="closest")
+    fig.update_layout(legend=dict(orientation="h", y=1.1, x=0), height=460)
+    fig.layout.transition = None
+    return fig
+
+
+def track_live(xy, height=520):
+    """Track outline plus one marker trace for every car; the browser moves the markers."""
+    fig = track_outline(xy, color="#5A5C66", width=7, height=height)
+    fig.data = fig.data[:1]                                        # drop the start/finish dot
+    fig.add_trace(go.Scatter(x=[], y=[], mode="markers+text", textposition="top center", hoverinfo="text",
+                             textfont=dict(size=10, color=LABEL_INK),
+                             marker=dict(size=13, line=dict(color="#0E1014", width=2))))
+    fig.update_layout(uirevision="track")
+    return fig
+
+
+def speed_ticker(height=320):
+    """Empty frame for the speed ticker; the browser fills in the last 60 s for the chosen drivers."""
+    fig = go.Figure()
+    fig.update_xaxes(title="Race time")
+    fig.update_yaxes(title="Speed (km/h)", range=[0, 360])
+    style(fig, margin=dict(l=10, r=10, t=30, b=10), hovermode="x unified")
+    fig.update_layout(height=height, legend=dict(orientation="h", y=1.12, x=0), uirevision="speed")
+    fig.layout.transition = None
+    return fig

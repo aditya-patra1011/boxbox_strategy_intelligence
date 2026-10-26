@@ -19,6 +19,7 @@ from .store import DEFAULT_PATH, SESSION_TABLES, connect, upsert
 
 SAMPLE_HZ = 2               # car samples kept per second (OpenF1 sends ~3.7)
 DELAY = timedelta(minutes=30)
+WINDOW = (timedelta(minutes=-10), timedelta(minutes=30))   # car samples kept around the session
 KEEP_SAMPLES_FOR = 3        # car samples are big: keep them only for the newest sessions
 
 
@@ -48,13 +49,16 @@ def race_for(session, races):
     return None, None, None
 
 
-def thin(location, car_data, t0, hz=SAMPLE_HZ):
+def thin(location, car_data, t0, hz=SAMPLE_HZ, window=None):
     """Merge one driver's location and car data onto a fixed grid of 1/hz seconds.
-    The first sample in each slot wins; slots with neither are left out."""
+    The first sample in each slot wins; slots with neither, or outside `window`
+    (seconds from t0), are left out. OpenF1 can return a day of data before the session."""
     slots = {}
     for rows, fields in ((location, ("x", "y")), (car_data, ("speed", "throttle", "brake", "n_gear", "rpm"))):
         for r in rows:
             t = math.floor((_utc(r["date"]) - t0).total_seconds() * hz) / hz
+            if window and not window[0] <= t <= window[1]:
+                continue
             slot = slots.setdefault(t, {})
             for f in fields:
                 if f not in slot and r.get(f) is not None:
@@ -113,10 +117,12 @@ def ingest_session(f1, conn, session_key=None, now=None, log=print):
                                                   "wind_speed")} for w in f1.get("weather", session_key=key)),
         "car_samples": [],
     }
+    length = (_utc(session["date_end"]) - t0).total_seconds()
+    window = (WINDOW[0].total_seconds(), length + WINDOW[1].total_seconds())
     for d in drivers:
         n = d["driver_number"]
         rows = thin(f1.get("location", session_key=key, driver_number=n),
-                    f1.get("car_data", session_key=key, driver_number=n), t0)
+                    f1.get("car_data", session_key=key, driver_number=n), t0, window=window)
         data["car_samples"] += tagged(rows, driver_number=n)
         log(f"  car {n:>2} {d['name_acronym']}: {len(rows)} samples")
 
