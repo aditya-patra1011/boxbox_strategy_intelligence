@@ -58,6 +58,13 @@ def update(circuit):
         for label in ["A", "B", "C"]:
             r = cp[cp["PlanLabel"] == label]
             if r.empty:
+                if label == "B":        # wet 2024 races: strategy cards cover dry tyres only
+                    cards.append(dbc.Col(html.Div([
+                        html.Div(html.Span(TITLES[label], className="bb-plan-title"), className="bb-plan-top"),
+                        html.P("Strategy cards cover dry-tyre strategies only. The 2024 race here ran "
+                               "partly on intermediates, so there's no dry real-world plan to compare.",
+                               className="bb-card-sub"),
+                    ], className="bb-card bb-plan"), md=4))
                 continue
             r = r.iloc[0]
             delta = (r["PredictedTotalTime"] - base) if base is not None else None

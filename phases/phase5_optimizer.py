@@ -57,6 +57,9 @@ TWO_STOP_STEP = 2
 THREE_STOP_STEP = 3             #Coarser grid: three stops multiply the combinations
 DEFAULT_PIT_LOSS = 22.0
 FUEL_EFFECT_PER_LAP = 0.054     #Same as Phase 2: s/lap gained as fuel burns
+EARLY_STOP_LAPS = 5             #Stops on these opening laps rejoin a tightly bunched field
+MIN_EARLY_STOPS = 5             #Fewer measured early stops than this = no early-stop cost
+TIE_TOLERANCE = 1.0             #Seconds: plans this close are a tie at the model's accuracy
 
 """LOADING ALL PHASE 3/4 OUTPUTS
 """
@@ -74,7 +77,8 @@ def load_all_data():
 
     #Raw laps keep lap 1 and the pit laps, so real stint lengths can be counted in full
     raw_laps = pd.read_csv(os.path.join(BASE, 'data', 'raw', 'raw_laps.csv'),
-                           usecols=['CircuitName', 'Driver', 'Stint', 'Compound', 'LapNumber'])
+                           usecols=['CircuitName', 'Driver', 'Stint', 'Compound', 'LapNumber',
+                                    'LapTimeSeconds', 'TrackStatus', 'IsPitInLap', 'IsPitOutLap'])
 
     log.info(f" degradation_profiles: {len(degradation_df)} rows")
     log.info(f" feature_store: {len(feature_store)} rows")
@@ -101,6 +105,40 @@ def min_stint_by_circuit(raw_laps):
     floor = opening.groupby('CircuitName')['size'].quantile(OPENING_STINT_PERCENTILE).round()
     return {c: max(MIN_STINT_LENGTH, int(v)) for c, v in floor.items()}
 
+def measured_stop_costs(raw_laps):
+    '''Time each green-flag stop really cost in 2024: the in-lap, out-lap and next three
+    laps, against the driver's own median green-flag pace in the five laps either side.
+    Stops with a Safety Car, VSC or yellow anywhere in that window are left out.'''
+    r = raw_laps.copy()
+    r['LapNumber'] = r['LapNumber'].astype(int)
+    r['TrackStatus'] = r['TrackStatus'].astype(str).str.replace(r'\.0$', '', regex=True)
+    rows = []
+    for _, g in r.groupby(['CircuitName', 'Driver']):
+        g = g.drop_duplicates('LapNumber').set_index('LapNumber').sort_index()
+        for lap in g.index[g['IsPitInLap'] == True]:
+            window = list(range(lap, lap + 5))
+            if not all(l in g.index for l in window):
+                continue
+            w = g.loc[window]
+            ref = g.loc[[l for l in list(range(lap - 5, lap)) + list(range(lap + 6, lap + 11)) if l in g.index]]
+            ref = ref[(ref['TrackStatus'] == '1') & (ref['IsPitInLap'] != True) & (ref['IsPitOutLap'] != True)]
+            if w['TrackStatus'].ne('1').any() or len(ref) < 4 or w['LapTimeSeconds'].isna().any():
+                continue
+            rows.append({'lap': lap, 'cost': (w['LapTimeSeconds'] - ref['LapTimeSeconds'].median()).sum()})
+    return pd.DataFrame(rows, columns=['lap', 'cost'])
+
+def early_stop_cost(raw_laps):
+    '''Extra time a stop on the opening laps cost in 2024 compared with a later stop
+    (the field is still bunched, so you rejoin in traffic). 0 if the data is too thin.'''
+    costs = measured_stop_costs(raw_laps)
+    early = costs[costs['lap'] <= EARLY_STOP_LAPS]['cost']
+    later = costs[costs['lap'] > EARLY_STOP_LAPS]['cost']
+    extra = max(0.0, early.median() - later.median()) if len(early) >= MIN_EARLY_STOPS else 0.0
+    log.info(f" Measured green-flag stops: {len(costs)}; stops on laps 1-{EARLY_STOP_LAPS} cost "
+             f"{extra:+.1f}s more than later ones (from {len(early)} early stops"
+             f"{', a thin sample' if len(early) < 30 else ''})")
+    return round(extra, 2)
+
 def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps, raw_laps):
     log.info("BUILDING LOOKUP STRUCTURES...")
 
@@ -123,12 +161,14 @@ def build_lookups(degradation_df, feature_store, hazard_df, engineered_laps, raw
             'max_tyre_life': row['AvgTyreLife'] * 2 #Roughly safety ceiling
         }
 
-    # feature_store -> {circuit: {pit_loss, sc_probability, total_laps, min_stint}}
+    # feature_store -> {circuit: {pit_loss, early_stop_cost, sc_probability, total_laps, min_stint}}
     min_stint = min_stint_by_circuit(raw_laps)
+    early_cost = early_stop_cost(raw_laps)
     circuit_info = {}
     for _, row in feature_store.iterrows():
         circuit_info[row['CircuitName']] = {
             'pit_loss': row['AvgPitLoss'] if pd.notna(row['AvgPitLoss']) else DEFAULT_PIT_LOSS,
+            'early_stop_cost': early_cost,
             'sc_probability': row['SafetyCarProbability'],
             'total_laps': int(row['TotalRaceLaps']),
             'min_stint': min_stint.get(row['CircuitName'], MIN_STINT_LENGTH)
@@ -198,7 +238,8 @@ def calculate_risk_score(circuit, strategy, deg_profiles, hazard_lookup, sc_prob
 """STRATEGY SIMULATION
 """
 
-def simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint=MIN_STINT_LENGTH):
+def simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint=MIN_STINT_LENGTH, early_cost=0.0,
+                      check_limits=True):
     total_time = 0
     num_stops = len(strategy) - 1
 
@@ -206,12 +247,16 @@ def simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint=MIN_S
         profile = deg_profiles.get(compound)
         if profile is None:
             return None
-        if not is_valid_stint(profile, stint_length, min_stint):
+        if check_limits and not is_valid_stint(profile, stint_length, min_stint):
             return None
         total_time += stint_time(
             profile['base_lap_time'], profile['degradation_rate'], stint_length
         )
     total_time += num_stops * pit_loss
+
+    #A stop on the opening laps costs extra: you rejoin a field that's still bunched up
+    stop_laps = np.cumsum([length for _, length in strategy])[:-1]
+    total_time += early_cost * int((stop_laps <= EARLY_STOP_LAPS).sum())
 
     '''Pace is fuel-corrected, so take the fuel effect back out: lap L of the race is
     FUEL_EFFECT_PER_LAP * L faster. It's the same for every strategy over the same
@@ -232,6 +277,7 @@ def generate_strategies(circuit, deg_lookup, circuit_info):
     total_laps = circuit_info[circuit]['total_laps']
     pit_loss = circuit_info[circuit]['pit_loss']
     min_stint = circuit_info[circuit]['min_stint']
+    early_cost = circuit_info[circuit].get('early_stop_cost', 0.0)
     deg_profiles = deg_lookup[circuit]
     available_compounds = list(deg_profiles.keys())
 
@@ -240,7 +286,7 @@ def generate_strategies(circuit, deg_lookup, circuit_info):
     def add(stops, strategy):
         if len({c for c, _ in strategy}) < 2:           #must use at least two compounds
             return
-        total_time = simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint)
+        total_time = simulate_strategy(circuit, strategy, deg_profiles, pit_loss, min_stint, early_cost)
         if total_time is not None:
             results[stops].append({'strategy': strategy, 'total_time': total_time})
 
@@ -279,55 +325,52 @@ def generate_strategies(circuit, deg_lookup, circuit_info):
 
 """FIND REAL-WORLD MOST COMMON STRATEGY(for Plan B)
 
-Looks at the actual 2024 stint data to find what stop-count and rough compounds sequence was commonly used at this circuit
+Looks at the actual 2024 stint data to find what stop-count and rough compounds sequence was commonly used at this circuit.
+It reads the raw laps of drivers who finished the full distance: the cleaned laps drop whole stints (wet running,
+red-flag and safety-car laps), so their stint count doesn't match the stops a driver really made
 """
 
-def find_real_world_strategy(circuit, engineered_laps):
-    circuit_laps = engineered_laps[engineered_laps['CircuitName'] == circuit]
+def find_real_world_strategy(circuit, raw_laps):
+    circuit_laps = raw_laps[raw_laps['CircuitName'] == circuit].dropna(subset=['LapNumber', 'Stint'])
 
     if circuit_laps.empty:
         return None
 
-    #Count stops per driver (max stint number - 1)
-    stops_per_driver = circuit_laps.groupby('Driver')['Stint'].max() - 1
-    most_common_stops = stops_per_driver.mode()
-
-    if most_common_stops.empty:
-        return None
-
-    common_stop_count = int(most_common_stops.iloc[0])
-
-    #Find the most common compound sequence among drivers with that stop count
-    drivers_with_common_stops = stops_per_driver[
-        stops_per_driver == common_stop_count
-    ].index
-
+    race_laps = circuit_laps['LapNumber'].max()
     sequences = []
     lengths_by_seq = {}
-    for driver in drivers_with_common_stops:
-        driver_laps = circuit_laps[circuit_laps['Driver'] == driver].sort_values('LapNumber')
-        stints = driver_laps.groupby('Stint')
-
-        seq = tuple(stints['Compound'].first().tolist())
-        if len(seq) != common_stop_count + 1:
+    for _, driver_laps in circuit_laps.groupby('Driver'):
+        if driver_laps['LapNumber'].max() < race_laps:      #retired or lapped: not a full-race strategy
             continue
+        stints = driver_laps.sort_values('LapNumber').groupby('Stint')
+        compounds = stints['Compound'].first().tolist()
+        spans = (stints['LapNumber'].max() - stints['LapNumber'].min() + 1).astype(int).tolist()
 
+        '''Fold stints of 1-2 laps into the next one: tyres changed under a lap-1 red flag
+        (Japan, Monaco) and stint-numbering glitches aren't pit stops'''
+        seq, lengths, carry = [], [], 0
+        for compound, n in zip(compounds, spans):
+            if n <= 2:
+                carry += n
+                continue
+            seq.append(compound)
+            lengths.append(n + carry)
+            carry = 0
+        if not seq:
+            continue
+        lengths[-1] += carry
+
+        seq = tuple(seq)
         sequences.append(seq)
-
-        #Real stint lengths: first lap to last lap of each stint
-        spans = (stints['LapNumber'].max() - stints['LapNumber'].min() + 1).tolist()
-        lengths_by_seq.setdefault(seq, []).append(spans)
+        lengths_by_seq.setdefault(seq, []).append(lengths)
 
     if not sequences:
         return None
 
-    seq_series = pd.Series(sequences)
-    most_common_seq = seq_series.mode()
-
-    if most_common_seq.empty:
-        return None
-
-    best_seq = most_common_seq.iloc[0]
+    #Most common stop count, then the most common compound sequence among drivers who made it
+    stop_counts = pd.Series([len(s) - 1 for s in sequences])
+    common_stop_count = int(stop_counts.mode().iloc[0])
+    best_seq = pd.Series([s for s in sequences if len(s) - 1 == common_stop_count]).mode().iloc[0]
 
     #Median stint length at each position, across drivers who ran this sequence
     median_lengths = np.median(np.array(lengths_by_seq[best_seq]), axis=0)
@@ -341,7 +384,7 @@ def find_real_world_strategy(circuit, engineered_laps):
 """BUILD PLAN A/B/C FOR ONE CIRCUIT
 """
 
-def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps):
+def build_plans(circuit, deg_look, circuit_info, hazard_lookup, raw_laps):
     by_stops, deg_profiles = generate_strategies(circuit, deg_look, circuit_info)
     if not any(by_stops.values()) and circuit_info.get(circuit, {}).get('min_stint', MIN_STINT_LENGTH) > MIN_STINT_LENGTH:
         '''The circuit's floor can rule out every strategy (Great Britain 2024 was wet, so
@@ -350,15 +393,25 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps)
                     f"retrying with {MIN_STINT_LENGTH}")
         circuit_info[circuit]['min_stint'] = MIN_STINT_LENGTH
         by_stops, deg_profiles = generate_strategies(circuit, deg_look, circuit_info)
-    best = {stops: min(r, key=lambda x: x['total_time']) for stops, r in by_stops.items() if r}
+
+    def pick(results):
+        '''The fastest plan, except that plans within TIE_TOLERANCE of it are a tie at the
+        model's accuracy: among those, prefer the one whose shortest stint is longest.
+        (With flat tyre wear, e.g. Monaco and Canada, a 5-lap and a 10-lap opening stint
+        can differ by under a second, and "fastest" would just pick the extreme.)'''
+        fastest = min(r['total_time'] for r in results)
+        near = [r for r in results if r['total_time'] <= fastest + TIE_TOLERANCE]
+        return max(near, key=lambda r: (min(n for _, n in r['strategy']), -r['total_time']))
+
+    best = {stops: pick(r) for stops, r in by_stops.items() if r}
 
     if not best:
         return None
 
     sc_probability = circuit_info[circuit]['sc_probability']
 
-    #PLAN-A: Mathematically optimal overall
-    plan_a = min(best.values(), key=lambda x: x['total_time'])
+    #PLAN-A: optimal overall (ties broken the same way)
+    plan_a = pick(list(best.values()))
 
     '''PLAN-C: the fastest strategy with a different number of stops. Where no
     one-stop fits the tyre life seen in 2024, that is usually a three-stop'''
@@ -367,31 +420,33 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, engineered_laps)
     plan_c = min(others, key=lambda x: x['total_time']) if others else None
 
     #PLAN-B: Most common real-world strategy
-    real_world = find_real_world_strategy(circuit, engineered_laps)
+    real_world = find_real_world_strategy(circuit, raw_laps)
     plan_b = None
 
     if real_world is not None:
         total_laps = circuit_info[circuit]['total_laps']
 
         '''Use the real median stint lengths, scaled so they add up
-        to the full race distance (the cleaned data has pit/in/out
-        laps removed, so the raw lengths fall a few laps short)'''
+        to the full race distance (medians of each stint needn't sum
+        to exactly the race length)'''
         raw = np.array(real_world['stint_lengths'], dtype=float)
         lengths = np.round(raw / raw.sum() * total_laps).astype(int)
         lengths[-1] = total_laps - lengths[:-1].sum()
 
         approx_strategy = list(zip(real_world['compound_sequence'], lengths.tolist()))
 
+        '''No stint-length limits here: teams really ran these stints, even past the tyre
+        life in the cleaned laps. Plans are dry-tyre only, so a race run partly on
+        intermediates (Canada, Great Britain) has no Plan B rather than a copy of another plan'''
         total_time = simulate_strategy(
-            circuit, approx_strategy, deg_profiles, circuit_info[circuit]['pit_loss']
+            circuit, approx_strategy, deg_profiles, circuit_info[circuit]['pit_loss'],
+            early_cost=circuit_info[circuit].get('early_stop_cost', 0.0), check_limits=False
         )
         if total_time is not None:
             plan_b = {'strategy': approx_strategy, 'total_time': total_time}
-
-    '''Fallback - if no real world plan could be built, use the
-    best strategy from the stop count NOT used by Plan A or C'''
-    if plan_b is None:
-        plan_b = plan_c if plan_c is not None else plan_a
+        else:
+            log.info(f" {circuit}: no Plan B, plans are dry-tyre only and the 2024 race wasn't "
+                     f"({'->'.join(real_world['compound_sequence'])})")
 
     def format_plan(plan, label):
         if plan is None:
@@ -434,7 +489,7 @@ def main():
     log.info(f"\nGenerating strategies for {len(circuits)} circuits...")
 
     for circuit in circuits:
-        result = build_plans(circuit, deg_lookup, circuit_info, hazard_lookup, engineered_laps)
+        result = build_plans(circuit, deg_lookup, circuit_info, hazard_lookup, raw_laps)
 
         if result is None:
             log.warning(f" {circuit}: No valid strategies found")
