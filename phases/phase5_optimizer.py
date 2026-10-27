@@ -436,8 +436,8 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, raw_laps):
         approx_strategy = list(zip(real_world['compound_sequence'], lengths.tolist()))
 
         '''No stint-length limits here: teams really ran these stints, even past the tyre
-        life in the cleaned laps. It still needs a model for every compound, so a wet race
-        (Canada, Great Britain) has no Plan B rather than a copy of another plan'''
+        life in the cleaned laps. Plans are dry-tyre only, so a race run partly on
+        intermediates (Canada, Great Britain) has no Plan B rather than a copy of another plan'''
         total_time = simulate_strategy(
             circuit, approx_strategy, deg_profiles, circuit_info[circuit]['pit_loss'],
             early_cost=circuit_info[circuit].get('early_stop_cost', 0.0), check_limits=False
@@ -445,7 +445,7 @@ def build_plans(circuit, deg_look, circuit_info, hazard_lookup, raw_laps):
         if total_time is not None:
             plan_b = {'strategy': approx_strategy, 'total_time': total_time}
         else:
-            log.info(f" {circuit}: no Plan B, the 2024 race used tyres with no dry model "
+            log.info(f" {circuit}: no Plan B, plans are dry-tyre only and the 2024 race wasn't "
                      f"({'->'.join(real_world['compound_sequence'])})")
 
     def format_plan(plan, label):

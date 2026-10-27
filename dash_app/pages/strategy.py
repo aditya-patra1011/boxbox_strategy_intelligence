@@ -58,11 +58,11 @@ def update(circuit):
         for label in ["A", "B", "C"]:
             r = cp[cp["PlanLabel"] == label]
             if r.empty:
-                if label == "B":        # wet 2024 races: the dry-tyre model can't price what teams did
+                if label == "B":        # wet 2024 races: strategy cards cover dry tyres only
                     cards.append(dbc.Col(html.Div([
                         html.Div(html.Span(TITLES[label], className="bb-plan-title"), className="bb-plan-top"),
-                        html.P("No real-world plan to compare: the 2024 race here ran partly on "
-                               "intermediate or wet tyres, which the degradation model doesn't cover.",
+                        html.P("Strategy cards cover dry-tyre strategies only. The 2024 race here ran "
+                               "partly on intermediates, so there's no dry real-world plan to compare.",
                                className="bb-card-sub"),
                     ], className="bb-card bb-plan"), md=4))
                 continue
