@@ -39,9 +39,18 @@ def test_results_are_checked_every_15_minutes_until_they_arrive():
     assert jobs("2026-10-25T22:30:00", stored=(17, 18), results=(17, 18), last_run=last) == []
 
 
-def test_old_races_are_left_alone_after_36_hours():
-    # round 18 is still missing, but it's too old to chase: only the routine season refresh is due
-    assert jobs("2026-10-27T09:00:00") == [("season", None)]
+def test_older_races_are_left_alone_after_36_hours():
+    # round 18 is missing, but round 19 has run since: only the routine season refresh is due
+    assert jobs("2026-11-03T09:00:00", stored=(17, 19), results=(17, 19)) == [("season", None)]
+
+
+def test_the_newest_race_is_still_fetched_if_the_watcher_was_off():
+    # 37 hours after round 18, with no newer race: a watcher started now catches up
+    assert jobs("2026-10-27T09:00:00") == [("session", 18), ("results", 18)]
+
+
+def test_the_newest_race_is_left_alone_after_a_week():
+    assert jobs("2026-11-09T09:00:00", stored=(17, 18), results=(17, 18)) == [("season", None)]
 
 
 def test_the_season_is_refreshed_every_12_hours_when_nothing_else_does_it():
