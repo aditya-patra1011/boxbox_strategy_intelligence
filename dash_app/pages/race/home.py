@@ -31,7 +31,8 @@ def layout(circuit=None, **_):
                                  "then reload.", "warn")], className="bb-fade")
     at = R.now()
     cal = R.calendar(season, at)
-    done = cal[cal["status"] == "completed"]
+    # Calendar status follows the clock, but a race can only be listed once its results are stored.
+    done = cal[(cal["status"] == "completed") & cal["round"].isin(R.completed_rounds(season))]
     focus = cal[cal["status"] == "live"]
     focus = focus if not focus.empty else cal[cal["status"] == "upcoming"]
 
@@ -123,7 +124,7 @@ def show_race(rnd, season):
     if rnd is None:
         return message("No completed races yet this season.")
     t = R.race_table(R.results(season), rnd, R.final_tyres(season))
-    return results_table(t)
+    return results_table(t) if not t.empty else message("Results for this race aren't stored yet.", "warn")
 
 
 def results_table(t):

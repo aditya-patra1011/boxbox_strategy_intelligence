@@ -25,6 +25,7 @@ EARLIEST_RACE_END = timedelta(hours=1, minutes=45)   # shortest plausible race, 
 FREE_AFTER = timedelta(minutes=30)                   # OpenF1: historical (free) 30 min after the end
 RESULTS_EVERY = timedelta(minutes=15)
 RESULTS_GIVE_UP = timedelta(hours=36)
+CATCH_UP = timedelta(days=7)                         # the newest race is still fetched if the watcher was off
 SEASON_EVERY = timedelta(hours=12)
 
 
@@ -36,16 +37,18 @@ def due_jobs(races, stored_rounds, result_rounds, last_run, now):
     races: [{"round", "race_utc"}] of the season; stored_rounds: rounds whose race session is
     stored in full; result_rounds: rounds with official results; last_run: {job: datetime}."""
     jobs = []
+    newest = max((r["round"] for r in races if now >= _utc(r["race_utc"])), default=None)
     for r in races:
         start = _utc(r["race_utc"])
         rnd = r["round"]
         if now < start:
             continue
+        give_up = CATCH_UP if rnd == newest else RESULTS_GIVE_UP
         if rnd not in stored_rounds and now >= start + EARLIEST_RACE_END + FREE_AFTER \
-                and now - start < RESULTS_GIVE_UP:
+                and now - start < give_up:
             jobs.append(("session", rnd))
         last = last_run.get(f"results:{rnd}")
-        if rnd not in result_rounds and now - start < RESULTS_GIVE_UP \
+        if rnd not in result_rounds and now - start < give_up \
                 and (last is None or now - last >= RESULTS_EVERY):
             jobs.append(("results", rnd))
     last = last_run.get("season")
